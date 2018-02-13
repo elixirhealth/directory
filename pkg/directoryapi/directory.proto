@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package directoryapi;
+
+service Directory {
+    rpc PutEntity (PutEntityRequest) returns (PutEntityResponse) {}
+    rpc GetEntity (GetEntityRequest) returns (GetEntityResponse) {}
+
+    // TODO (drausin) add additional endpoints
+    // - SearchEntity
+    // - PutKeychain
+    // - GetKeychain
+}
+
+message PutEntityRequest {
+    Entity entity = 1;
+}
+
+message PutEntityResponse {
+    string entity_id = 1;
+    PutOperation operation = 2;
+}
+
+message GetEntityRequest {
+    string entity_id = 1;
+}
+
+message GetEntityResponse {
+    Entity entity = 1;
+}
+
+
+
+
+message Entity {
+    string entity_id = 1;
+    oneof attributes_type {
+        Patient patient = 2;
+        Office office = 3;
+    }
+}
+
+message Patient {
+    // TODO
+}
+
+message Office {
+    // TODO
+}
+
+enum PutOperation {
+    // new value was added
+    STORED = 0;
+
+    // value already existed
+    LEFT_EXISTING = 1;
+}
+
