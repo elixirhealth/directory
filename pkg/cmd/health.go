@@ -30,7 +30,7 @@ func init() {
 }
 
 func getHealthChecker() (server.HealthChecker, error) {
-	addrs, err := parse.Addrs(viper.GetStringSlice(directorysFlag))
+	addrs, err := parse.Addrs(viper.GetStringSlice(directoriesFlag))
 	if err != nil {
 		return nil, err
 	}

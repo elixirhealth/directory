@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	directorysFlag = "directorys"
+	directoriesFlag = "directories"
 )
 
 // testCmd represents the test command
@@ -19,7 +19,7 @@ var testCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(testCmd)
 
-	testCmd.PersistentFlags().StringSlice(directorysFlag, nil,
+	testCmd.PersistentFlags().StringSlice(directoriesFlag, nil,
 		"space-separated addresses of directory(s)")
 
 	// bind viper flags

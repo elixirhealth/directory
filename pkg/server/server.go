@@ -27,12 +27,14 @@ func newDirectory(config *Config) (*Directory, error) {
 	}, nil
 }
 
+// PutEntity creates a new or updated an existing entity.
 func (x *Directory) PutEntity(
 	ctx context.Context, rq *api.PutEntityRequest,
 ) (*api.PutEntityResponse, error) {
 	panic("implement me")
 }
 
+// GetEntity returns an existing entity.
 func (x *Directory) GetEntity(
 	ctx context.Context, rq *api.GetEntityRequest,
 ) (*api.GetEntityResponse, error) {

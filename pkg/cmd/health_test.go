@@ -8,14 +8,14 @@ import (
 )
 
 func TestGetHealthChecker(t *testing.T) {
-	directorys := "localhost:1234 localhost:5678"
-	viper.Set(directorysFlag, directorys)
+	directories := "localhost:1234 localhost:5678"
+	viper.Set(directoriesFlag, directories)
 	hc, err := getHealthChecker()
 	assert.Nil(t, err)
 	assert.NotNil(t, hc)
 
-	directorys = "1234"
-	viper.Set(directorysFlag, directorys)
+	directories = "1234"
+	viper.Set(directoriesFlag, directories)
 	hc, err = getHealthChecker()
 	assert.NotNil(t, err)
 	assert.Nil(t, hc)

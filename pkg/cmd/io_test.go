@@ -29,7 +29,7 @@ func TestTestIO(t *testing.T) {
 	}(wg1)
 
 	x := <-up
-	viper.Set(directorysFlag, fmt.Sprintf("localhost:%d", config.ServerPort))
+	viper.Set(directoriesFlag, fmt.Sprintf("localhost:%d", config.ServerPort))
 	// TODO set other I/O test configs
 
 	err := testIO()

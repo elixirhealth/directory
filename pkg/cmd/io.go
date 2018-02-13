@@ -12,10 +12,7 @@ import (
 )
 
 const (
-	nDocsFlag    = "nDocs"
 	timeoutFlag  = "timeout"
-	logKey       = "key"
-	logOperation = "operation"
 )
 
 var ioCmd = &cobra.Command{
@@ -45,7 +42,7 @@ func testIO() error {
 	//rng := rand.New(rand.NewSource(0))
 	//logger := lserver.NewDevLogger(lserver.GetLogLevel(viper.GetString(logLevelFlag)))
 	//timeout := time.Duration(viper.GetInt(timeoutFlag) * 1e9)
-	addrs, err := parse.Addrs(viper.GetStringSlice(directorysFlag))
+	addrs, err := parse.Addrs(viper.GetStringSlice(directoriesFlag))
 	if err != nil {
 		return err
 	}
