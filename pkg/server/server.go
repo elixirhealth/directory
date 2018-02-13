@@ -32,3 +32,9 @@ func (x *Directory) PutEntity(
 ) (*api.PutEntityResponse, error) {
 	panic("implement me")
 }
+
+func (x *Directory) GetEntity(
+	ctx context.Context, rq *api.GetEntityRequest,
+) (*api.GetEntityResponse, error) {
+	panic("implement me")
+}
