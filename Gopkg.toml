@@ -24,39 +24,12 @@
 #   go-tests = true
 #   unused-packages = true
 
-
-[[constraint]]
-  branch = "develop"
-  name = "github.com/drausin/libri"
-
-[[constraint]]
-  branch = "develop"
-  name = "github.com/elxirhealth/service-base"
-
-[[constraint]]
-  name = "github.com/pkg/errors"
-  version = "0.8.0"
-
-[[constraint]]
-  name = "github.com/spf13/cobra"
-  version = "0.0.1"
-
-[[constraint]]
-  name = "github.com/spf13/viper"
-  version = "1.0.0"
-
-[[constraint]]
-  name = "github.com/stretchr/testify"
-  version = "1.2.1"
-
-[[constraint]]
-  name = "go.uber.org/zap"
-  version = "1.7.1"
-
-[[constraint]]
-  name = "google.golang.org/grpc"
-  version = "1.9.2"
-
 [prune]
   go-tests = true
+  non-go = true
   unused-packages = true
+
+  [[prune.project]]
+    name = "github.com/elxirhealth/service-base"
+    non-go = false
+    unused-packages = false
