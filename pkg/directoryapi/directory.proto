@@ -3,8 +3,10 @@ syntax = "proto3";
 package directoryapi;
 
 service Directory {
-    rpc PutEntity (PutEntityRequest) returns (PutEntityResponse) {}
-    rpc GetEntity (GetEntityRequest) returns (GetEntityResponse) {}
+    rpc PutEntity (PutEntityRequest) returns (PutEntityResponse) {
+    }
+    rpc GetEntity (GetEntityRequest) returns (GetEntityResponse) {
+    }
 
     // TODO (drausin) add additional endpoints
     // - SearchEntity
@@ -30,29 +32,38 @@ message GetEntityResponse {
 }
 
 
-
-
 message Entity {
     string entity_id = 1;
-    oneof attributes_type {
+    oneof type_attributes {
         Patient patient = 2;
         Office office = 3;
     }
 }
 
 message Patient {
-    // TODO
+    string last_name = 1;
+    string first_name = 2;
+    string middle_name = 3;
+    string suffix = 4;
+    Date birthdate = 5;
 }
 
 message Office {
-    // TODO
+    string name = 1;
+    // TODO (drausin) address
 }
 
 enum PutOperation {
     // new value was added
-    STORED = 0;
+    CREATED = 0;
 
-    // value already existed
-    LEFT_EXISTING = 1;
+    // existing value was updated
+    UPDATED = 1;
+}
+
+message Date {
+    uint32 year = 1;
+    uint32 month = 2;
+    uint32 day = 3;
 }
 
