@@ -1,18 +1,18 @@
 package directoryapi
 
 import (
-	"strings"
+	"fmt"
 	"time"
 )
 
 // TODO add ValidateENDPOINTRequest method for each service ENDPOINT
 
 func (m *Date) ISO8601() string {
-	return strings.Join([]string{string(m.Year), string(m.Month), string(m.Day)}, "-")
+	return fmt.Sprintf("%d-%d-%d", m.Year, m.Month, m.Day)
 }
 
 func FromISO8601(isoDate string) (*Date, error) {
-	asTime, err := time.Parse("2006-01-02", isoDate)
+	asTime, err := time.Parse(time.RFC3339, isoDate)
 	if err != nil {
 		return nil, err
 	}

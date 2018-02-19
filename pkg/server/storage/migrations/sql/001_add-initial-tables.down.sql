@@ -1,5 +1,3 @@
-DROP INDEX entity.office_entity_id;
-DROP TABLE entity.office;
-DROP INDEX entity.patient_entity_id;
-DROP TABLE entity.patient;
+DROP TABLE entity.office CASCADE;
+DROP TABLE entity.patient CASCADE;
 DROP SCHEMA entity;

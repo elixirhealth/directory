@@ -2,7 +2,7 @@ CREATE SCHEMA entity;
 
 CREATE TABLE entity.patient (
   row_id SERIAL PRIMARY KEY,
-  entity_id VARCHAR,
+  entity_id VARCHAR UNIQUE NOT NULL,
   last_name VARCHAR,
   first_name VARCHAR,
   middle_name VARCHAR,
@@ -10,12 +10,8 @@ CREATE TABLE entity.patient (
   birthdate DATE
 );
 
-CREATE UNIQUE INDEX patient_entity_id ON entity.patient (entity_id);
-
 CREATE TABLE entity.office (
   row_id SERIAL PRIMARY KEY,
-  entity_id VARCHAR,
+  entity_id VARCHAR UNIQUE NOT NULL,
   name VARCHAR
 );
-
-CREATE UNIQUE INDEX office_entity_id ON entity.office (entity_id);

@@ -10,7 +10,7 @@ var (
 )
 
 type Storer interface {
-	PutEntity(e *api.Entity) error
+	PutEntity(e *api.Entity) (string, error)
 	GetEntity(entityID string) (*api.Entity, error)
 	Close() error
 }

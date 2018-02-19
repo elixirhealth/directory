@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/elxirhealth/directory/pkg/server/storage/migrations"
 	"github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/mattes/migrate/source/go-bindata"
@@ -43,11 +44,32 @@ func TestMain(m *testing.M) {
 
 func TestPostgresStorer_PutGetEntity(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
-	defer tearDown()
+	defer func() {
+		err := tearDown()
+		assert.Nil(t, err)
+	}()
 
 	rng := rand.New(rand.NewSource(0))
 	idGen := NewNaiveIDGenerator(rng, 9)
 	s, err := NewPostgresStorer(dbURL, idGen)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
+
+	e1 := &api.Entity{
+		TypeAttributes: &api.Entity_Patient{
+			Patient: &api.Patient{
+				LastName:   "Last Name 1",
+				FirstName:  "First Name 1",
+				MiddleName: "Middle Name 1",
+				Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
+			},
+		},
+	}
+	entityID, err := s.PutEntity(e1)
+	assert.Nil(t, err)
+	assert.Equal(t, entityID, e1.EntityId)
+
+	e2, err := s.GetEntity(entityID)
+	assert.Nil(t, err)
+	assert.Equal(t, e1, e2)
 }
