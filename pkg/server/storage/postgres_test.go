@@ -55,21 +55,71 @@ func TestPostgresStorer_PutGetEntity(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
-	e1 := &api.Entity{
-		TypeAttributes: &api.Entity_Patient{
-			Patient: &api.Patient{
-				LastName:   "Last Name 1",
-				FirstName:  "First Name 1",
-				MiddleName: "Middle Name 1",
-				Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
+	cases := map[entityType]struct {
+		original *api.Entity
+		updated  *api.Entity
+	}{
+		patient: {
+			original: &api.Entity{
+				TypeAttributes: &api.Entity_Patient{
+					Patient: &api.Patient{
+						LastName:   "Last Name 1",
+						FirstName:  "First Name 1",
+						MiddleName: "Middle Name 1",
+						Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
+					},
+				},
+			},
+			updated: &api.Entity{
+				TypeAttributes: &api.Entity_Patient{
+					Patient: &api.Patient{
+						LastName:   "Last Name 2",
+						FirstName:  "First Name 1",
+						MiddleName: "Middle Name 1",
+						Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
+					},
+				},
+			},
+		},
+
+		office: {
+			original: &api.Entity{
+				TypeAttributes: &api.Entity_Office{
+					Office: &api.Office{
+						Name: "Name 1",
+					},
+				},
+			},
+			updated: &api.Entity{
+				TypeAttributes: &api.Entity_Office{
+					Office: &api.Office{
+						Name: "Name 2",
+					},
+				},
 			},
 		},
 	}
-	entityID, err := s.PutEntity(e1)
-	assert.Nil(t, err)
-	assert.Equal(t, entityID, e1.EntityId)
+	assert.Equal(t, nEntityTypes, len(cases))
 
-	e2, err := s.GetEntity(entityID)
-	assert.Nil(t, err)
-	assert.Equal(t, e1, e2)
+	for et, c := range cases {
+		assert.Equal(t, et, getEntityType(c.original), et.string())
+		assert.NotEqual(t, c.original, c.updated)
+
+		entityID, err := s.PutEntity(c.original)
+		assert.Nil(t, err, et.string())
+		assert.Equal(t, entityID, c.original.EntityId, et.string())
+
+		gottenOriginal, err := s.GetEntity(entityID)
+		assert.Nil(t, err, et.string())
+		assert.Equal(t, c.original, gottenOriginal)
+
+		c.updated.EntityId = entityID
+		entityID, err = s.PutEntity(c.updated)
+		assert.Nil(t, err)
+		assert.Equal(t, entityID, c.updated.EntityId)
+
+		gottenUpdated, err := s.GetEntity(entityID)
+		assert.Nil(t, err)
+		assert.Equal(t, c.updated, gottenUpdated)
+	}
 }

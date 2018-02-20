@@ -2,17 +2,13 @@ package storage
 
 import (
 	"database/sql"
-	"fmt"
-	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/pkg/errors"
 )
 
 var (
-	errUnknownDBOperation = errors.New("unknown DB operation")
-	psql                  = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 )
 
 type postgresStorer struct {
@@ -41,17 +37,16 @@ func (s *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	et := getEntityType(e)
-	fqTbl := fmt.Sprintf("%s.%s", entitySchema, entityTypeTbls[et])
-
 	tx, err := s.dbProxy.Begin()
 	if err != nil {
 		return "", err
 	}
+	fqTbl := getEntityType(e).fullTableName()
+	vals := toStmtValues(e)
 	if insert {
-		_, err = psql.Insert(fqTbl).SetMap(toStmtValues(e)).RunWith(tx).Exec()
+		_, err = psql.Insert(fqTbl).SetMap(vals).RunWith(tx).Exec()
 	} else {
-		_, err = psql.Update(fqTbl).SetMap(toStmtValues(e)).RunWith(tx).Exec()
+		_, err = psql.Update(fqTbl).SetMap(vals).RunWith(tx).Exec()
 	}
 	if err != nil {
 		tx.Rollback()
@@ -61,13 +56,13 @@ func (s *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 }
 
 func (s *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
-	// TODO (drausin) validate entityID
+	if err := s.idGen.Check(entityID); err != nil {
+		return nil, err
+	}
 	et := getEntityTypeFromID(entityID)
-	fqTbl := fmt.Sprintf("%s.%s", entitySchema, entityTypeTbls[et])
-	conditions := sq.Eq{entityIDCol: entityID}
-	row := psql.Select(entityTypeAttrCols[et]...).
-		From(fqTbl).
-		Where(conditions).
+	row := psql.Select(fromRowCols(et)...).
+		From(et.fullTableName()).
+		Where(sq.Eq{entityIDCol: entityID}).
 		RunWith(s.db).
 		QueryRow()
 	return fromRow(row, entityID, et)
@@ -81,7 +76,7 @@ func (s *postgresStorer) maybeAddEntityID(e *api.Entity) (added bool, err error)
 	if e.EntityId != "" {
 		return false, nil
 	}
-	idPrefix := entityTypeIDPrefixes[getEntityType(e)]
+	idPrefix := getEntityType(e).idPrefix()
 	entityID, err := s.idGen.Generate(idPrefix)
 	if err != nil {
 		return false, err
@@ -90,64 +85,13 @@ func (s *postgresStorer) maybeAddEntityID(e *api.Entity) (added bool, err error)
 	return true, nil
 }
 
-type entityDBOp uint
-
 const (
-	INSERT entityDBOp = iota
-	UPDATE
-	SELECT
+	entitySchema = "entity"
+	entityIDCol  = "entity_id"
 )
 
-type entityType uint
-
-const (
-	patient entityType = iota
-	office
-)
-
-var (
-	entitySchema   = "entity"
-	entityIDCol    = "entity_id"
-	entityTypeTbls = map[entityType]string{
-		patient: "patient",
-		office:  "office",
-	}
-	entityTypeAttrCols = map[entityType][]string{
-		patient: {
-			"last_name",
-			"first_name",
-			"middle_name",
-			"suffix",
-			"birthdate",
-		},
-		office: {
-			"name",
-		},
-	}
-	entityTypeIDPrefixes = map[entityType]string{
-		patient: "P",
-		office:  "F",
-	}
-)
-
-func getEntityType(e *api.Entity) entityType {
-	switch e.TypeAttributes.(type) {
-	case *api.Entity_Patient:
-		return patient
-	case *api.Entity_Office:
-		return office
-	default:
-		panic(errUnknownEntityType)
-	}
-}
-
-func getEntityTypeFromID(entityID string) entityType {
-	for et, prefix := range entityTypeIDPrefixes {
-		if strings.HasPrefix(entityID, prefix) {
-			return et
-		}
-	}
-	panic(errUnknownEntityType)
+func (et entityType) fullTableName() string {
+	return entitySchema + "." + et.string()
 }
 
 func toStmtValues(e *api.Entity) map[string]interface{} {
@@ -165,6 +109,17 @@ func toStmtValues(e *api.Entity) map[string]interface{} {
 	return vals
 }
 
+func fromRowCols(et entityType) []string {
+	switch et {
+	case patient:
+		return fromPatientRowCols
+	case office:
+		return fromOfficeRowCols
+	default:
+		panic(errUnknownEntityType)
+	}
+}
+
 func fromRow(row sq.RowScanner, entityID string, et entityType) (*api.Entity, error) {
 	switch et {
 	case patient:
@@ -174,6 +129,14 @@ func fromRow(row sq.RowScanner, entityID string, et entityType) (*api.Entity, er
 	default:
 		panic(errUnknownEntityType)
 	}
+}
+
+var fromPatientRowCols = []string{
+	"last_name",
+	"first_name",
+	"middle_name",
+	"suffix",
+	"birthdate",
 }
 
 func fromPatientRow(row sq.RowScanner, entityID string) (*api.Entity, error) {
@@ -210,12 +173,16 @@ func toPatientStmtValues(p *api.Patient) map[string]interface{} {
 	}
 }
 
+var fromOfficeRowCols = []string{
+	"name",
+}
+
 func fromOfficeRow(row sq.RowScanner, entityID string) (*api.Entity, error) {
 	f := &api.Office{}
 	dest := []interface{}{
 		&f.Name,
 	}
-	if err := row.Scan(dest); err != nil {
+	if err := row.Scan(dest...); err != nil {
 		return nil, err
 	}
 	return &api.Entity{
