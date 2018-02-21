@@ -123,7 +123,7 @@ func toStmtValues(e *api.Entity) map[string]interface{} {
 		vals = toPatientStmtValues(ta.Patient)
 		vals[entityIDCol] = e.EntityId
 	case *api.Entity_Office:
-		vals = toOfficeStmtArgs(ta.Office)
+		vals = toOfficeStmtValues(ta.Office)
 		vals[entityIDCol] = e.EntityId
 	default:
 		panic(errUnknownEntityType)
@@ -213,7 +213,7 @@ func fromOfficeRow(row sq.RowScanner, entityID string) (*api.Entity, error) {
 	}, nil
 }
 
-func toOfficeStmtArgs(f *api.Office) map[string]interface{} {
+func toOfficeStmtValues(f *api.Office) map[string]interface{} {
 	return map[string]interface{}{
 		"name": f.Name,
 	}
