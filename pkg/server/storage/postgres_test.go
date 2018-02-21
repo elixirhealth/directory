@@ -198,13 +198,14 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	}
 
 	for desc, c := range cases {
-		entityID, err := c.s.PutEntity(c.e)
-		assert.NotNil(t, err, desc)
+		entityID, err2 := c.s.PutEntity(c.e)
+		assert.NotNil(t, err2, desc)
 		assert.Empty(t, entityID, desc)
 	}
 
 	// two puts with same gen'd ID
 	s, err := NewPostgresStorer(dbURL, &fixedIDGen{generateID: okID})
+	assert.Nil(t, err)
 	okEntity.EntityId = ""
 	_, err = s.PutEntity(okEntity)
 	assert.Nil(t, err)
