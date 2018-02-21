@@ -125,9 +125,43 @@ func TestPostgresStorer_PutGetEntity(t *testing.T) {
 	}
 }
 
+func TestPostgresStorer_GetEntity_err(t *testing.T) {
+	dbURL, tearDown := setUpPostgresTest(t)
+	defer func() {
+		err := tearDown()
+		assert.Nil(t, err)
+	}()
+
+	rng := rand.New(rand.NewSource(0))
+	idGen := NewNaiveIDGenerator(rng, 9)
+	s, err := NewPostgresStorer(dbURL, idGen)
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+
+	// bad ID
+	e, err := s.GetEntity("bad ID")
+	assert.NotNil(t, err)
+	assert.Nil(t, e)
+
+	// missing ID
+	missingID, err := idGen.Generate(patient.idPrefix())
+	assert.Nil(t, err)
+	e, err = s.GetEntity(missingID)
+	assert.Equal(t, ErrMissingEntity, err)
+	assert.Nil(t, e)
+}
+
 func TestPostgresStorer_PutEntity_err(t *testing.T) {
+	dbURL, tearDown := setUpPostgresTest(t)
+	defer func() {
+		err := tearDown()
+		assert.Nil(t, err)
+	}()
+
 	rng := rand.New(rand.NewSource(0))
 	okIDGen := NewNaiveIDGenerator(rng, 9)
+	okID, err := okIDGen.Generate(patient.idPrefix())
+	assert.Nil(t, err)
 	okEntity := &api.Entity{
 		TypeAttributes: &api.Entity_Patient{
 			Patient: &api.Patient{
@@ -168,17 +202,15 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 		assert.NotNil(t, err, desc)
 		assert.Empty(t, entityID, desc)
 	}
-}
 
-func TestPostgresStorer_GetEntity_err(t *testing.T) {
-	rng := rand.New(rand.NewSource(0))
-	s := &postgresStorer{
-		idGen: NewNaiveIDGenerator(rng, 9),
-	}
-
-	e, err := s.GetEntity("bad ID")
-	assert.NotNil(t, err)
-	assert.Nil(t, e)
+	// two puts with same gen'd ID
+	s, err := NewPostgresStorer(dbURL, &fixedIDGen{generateID: okID})
+	okEntity.EntityId = ""
+	_, err = s.PutEntity(okEntity)
+	assert.Nil(t, err)
+	okEntity.EntityId = ""
+	_, err = s.PutEntity(okEntity)
+	assert.Equal(t, ErrDupGenEntityID, err)
 }
 
 type fixedIDGen struct {

@@ -6,6 +6,8 @@ import (
 )
 
 var (
+	ErrMissingEntity     = errors.New("not entity with given ID")
+	ErrDupGenEntityID    = errors.New("duplicate entity ID generated")
 	errUnknownEntityType = errors.New("unknown entity type")
 )
 
