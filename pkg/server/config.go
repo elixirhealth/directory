@@ -1,9 +1,9 @@
 package server
 
 import (
+	"github.com/drausin/libri/libri/common/errors"
 	"github.com/elxirhealth/service-base/pkg/server"
 	"go.uber.org/zap/zapcore"
-	"github.com/drausin/libri/libri/common/errors"
 )
 
 const (
