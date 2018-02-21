@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
@@ -148,22 +149,22 @@ var fromPatientRowCols = []string{
 
 func fromPatientRow(row sq.RowScanner, entityID string) (*api.Entity, error) {
 	p := &api.Patient{}
-	var birthdateISO string
+	var birthdateTime time.Time
 	dest := []interface{}{
 		&p.LastName,
 		&p.FirstName,
 		&p.MiddleName,
 		&p.Suffix,
-		&birthdateISO,
+		&birthdateTime,
 	}
 	if err := row.Scan(dest...); err != nil {
 		return nil, err
 	}
-	birthdate, err := api.FromISO8601(birthdateISO)
-	if err != nil {
-		return nil, err
+	p.Birthdate = &api.Date{
+		Year:  uint32(birthdateTime.Year()),
+		Month: uint32(birthdateTime.Month()),
+		Day:   uint32(birthdateTime.Day()),
 	}
-	p.Birthdate = birthdate
 	return &api.Entity{
 		EntityId:       entityID,
 		TypeAttributes: &api.Entity_Patient{Patient: p},

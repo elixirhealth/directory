@@ -27,6 +27,7 @@ const (
 	invalidCodePoint = 0xFF
 )
 
+// ChecksumIDChecker checks that an ID has a valid Luhn checksum.
 type ChecksumIDChecker interface {
 	// Check confirms that the right-most character properly checksums the rest of the id,
 	// returning a non-nil error if it does not.

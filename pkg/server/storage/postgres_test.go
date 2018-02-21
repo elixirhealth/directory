@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"log"
 	"math/rand"
 	"os"
@@ -122,4 +123,74 @@ func TestPostgresStorer_PutGetEntity(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, c.updated, gottenUpdated)
 	}
+}
+
+func TestPostgresStorer_PutEntity_err(t *testing.T) {
+	rng := rand.New(rand.NewSource(0))
+	okIDGen := NewNaiveIDGenerator(rng, 9)
+	okEntity := &api.Entity{
+		TypeAttributes: &api.Entity_Patient{
+			Patient: &api.Patient{
+				LastName:   "Last Name 1",
+				FirstName:  "First Name 1",
+				MiddleName: "Middle Name 1",
+				Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
+			},
+		},
+	}
+
+	cases := map[string]struct {
+		s *postgresStorer
+		e *api.Entity
+	}{
+		"bad entity ID": {
+			s: &postgresStorer{
+				idGen: okIDGen,
+			},
+			e: &api.Entity{EntityId: "bad ID"},
+		},
+		"bad entity": {
+			s: &postgresStorer{
+				idGen: okIDGen,
+			},
+			e: &api.Entity{},
+		},
+		"ID gen error": {
+			s: &postgresStorer{
+				idGen: &fixedIDGen{generateErr: errors.New("some Generate error")},
+			},
+			e: okEntity,
+		},
+	}
+
+	for desc, c := range cases {
+		entityID, err := c.s.PutEntity(c.e)
+		assert.NotNil(t, err, desc)
+		assert.Empty(t, entityID, desc)
+	}
+}
+
+func TestPostgresStorer_GetEntity_err(t *testing.T) {
+	rng := rand.New(rand.NewSource(0))
+	s := &postgresStorer{
+		idGen: NewNaiveIDGenerator(rng, 9),
+	}
+
+	e, err := s.GetEntity("bad ID")
+	assert.NotNil(t, err)
+	assert.Nil(t, e)
+}
+
+type fixedIDGen struct {
+	checkErr    error
+	generateID  string
+	generateErr error
+}
+
+func (f *fixedIDGen) Check(id string) error {
+	return f.checkErr
+}
+
+func (f *fixedIDGen) Generate(prefix string) (string, error) {
+	return f.generateID, f.generateErr
 }
