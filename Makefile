@@ -1,5 +1,5 @@
 SHELL=/bin/bash -eou pipefail
-GOTOOLS= github.com/alecthomas/gometalinter github.com/wadey/gocovmerge
+GOTOOLS= github.com/alecthomas/gometalinter github.com/wadey/gocovmerge github.com/jteeuwen/go-bindata
 PKGS=$(shell go list ./... | grep -v /vendor/)
 PKG_SUBDIRS=$(shell go list ./... | grep -v /vendor/ | sed -r 's|github.com/elxirhealth/directory/||g' | sort)
 GIT_STATUS_SUBDIRS=$(shell git status --porcelain | grep -e '\.go$$' | sed -r 's|^...(.+)/[^/]+\.go$$|\1|' | sort | uniq)
@@ -54,6 +54,11 @@ lint-diff:
 	@echo "--> Running gometalinter on packages with uncommitted changes"
 	@echo $(GIT_STATUS_PKG_SUBDIRS) | tr " " "\n"
 	@echo $(GIT_STATUS_PKG_SUBDIRS) | xargs gometalinter --config="vendor/$(SERVICE_BASE_PKG)/.gometalinter.json" --deadline=5m
+
+migrations:
+	@echo "--> Generating Postgres migrations from files"
+	@go-bindata -o pkg/server/storage/migrations/migrations.go -pkg migrations -prefix 'pkg/server/storage/migrations/sql/' pkg/server/storage/migrations/sql
+	@goimports -w pkg/server/storage/migrations/migrations.go
 
 proto:
 	@echo "--> Running protoc"
