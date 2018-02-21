@@ -6,6 +6,11 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	"github.com/lib/pq"
+)
+
+const (
+	pqUniqueViolationErrCode = "23505"
 )
 
 var (
@@ -57,6 +62,11 @@ func (s *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 		_, err = psql.Update(fqTbl).SetMap(vals).RunWith(tx).Exec()
 	}
 	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok {
+			if pqErr.Code == pqUniqueViolationErrCode {
+				return "", ErrDupGenEntityID
+			}
+		}
 		_ = tx.Rollback()
 		return "", err
 	}
@@ -73,7 +83,11 @@ func (s *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
 		Where(sq.Eq{entityIDCol: entityID}).
 		RunWith(s.db).
 		QueryRow()
-	return fromRow(row, entityID, et)
+	e, err := fromRow(row, entityID, et)
+	if err == sql.ErrNoRows {
+		return nil, ErrMissingEntity
+	}
+	return e, err
 }
 
 func (s *postgresStorer) Close() error {
