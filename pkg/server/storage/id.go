@@ -14,6 +14,7 @@ var (
 	// ErrInvalidPrefix indicates when the prefix character is not base 32.
 	ErrInvalidPrefix = errors.New("prefix character not in base 32")
 
+	// ErrIncorrectChecksum indicates when the checksum is incorrect for the rest of the ID>
 	ErrIncorrectChecksum = errors.New("last character is incorrect checksum")
 
 	// base32Encoder and base32Decoder come from base32.StdEncoding but are defined here as
@@ -26,14 +27,18 @@ const (
 	invalidCodePoint = 0xFF
 )
 
-// ChecksumIDGenerator creates base-32 IDs with a Luhn checksum character at the end.
-type ChecksumIDGenerator interface {
-	// Generate returns an ID with the given (usually 1-character) prefix.
-	Generate(prefix string) (string, error)
-
+type ChecksumIDChecker interface {
 	// Check confirms that the right-most character properly checksums the rest of the id,
 	// returning a non-nil error if it does not.
 	Check(id string) error
+}
+
+// ChecksumIDGenerator creates base-32 IDs with a Luhn checksum character at the end.
+type ChecksumIDGenerator interface {
+	ChecksumIDChecker
+
+	// Generate returns an ID with the given (usually 1-character) prefix.
+	Generate(prefix string) (string, error)
 }
 
 type naiveIDGenerator struct {

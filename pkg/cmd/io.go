@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	timeoutFlag  = "timeout"
+	timeoutFlag = "timeout"
 )
 
 var ioCmd = &cobra.Command{

@@ -12,7 +12,7 @@ import (
  2) Increment nEntityTypes and add to the entityType enum values.
  3) Create a migration adding a table for the new type.
  4) Run the tests, and they will tell you what you need to fix (usually by adding a case for the
- new type in most of the functions below).
+ new type in functions below and in postgres.go).
 */
 
 type entityType int

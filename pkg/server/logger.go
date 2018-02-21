@@ -1,5 +1,5 @@
 package server
 
 const (
-	// TODO add logger keys
+// TODO add logger keys
 )

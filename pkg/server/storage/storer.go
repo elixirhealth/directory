@@ -9,21 +9,16 @@ var (
 	errUnknownEntityType = errors.New("unknown entity type")
 )
 
+// Storer stores and retrieves entities.
 type Storer interface {
-	PutEntity(e *api.Entity) (string, error)
-	GetEntity(entityID string) (*api.Entity, error)
-	Close() error
-}
 
-func validateEntity(e *api.Entity) error {
-	// TODO (drausin) check entityID
-	switch e.TypeAttributes.(type) {
-	case *api.Entity_Patient:
-		// TODO (drausin) add patient validation
-		return nil
-	case *api.Entity_Office:
-		// TODO (drausin) add office validation
-		return nil
-	}
-	panic(errUnknownEntityType)
+	// PutEntity inserts a new or updates an existing entity (based on e.EntityId) and returns
+	// the entity ID.
+	PutEntity(e *api.Entity) (string, error)
+
+	// GetEntity retrives the entity with the given entityID.
+	GetEntity(entityID string) (*api.Entity, error)
+
+	// Close handles any necessary cleanup.
+	Close() error
 }

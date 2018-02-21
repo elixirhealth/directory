@@ -17,6 +17,8 @@ type postgresStorer struct {
 	dbProxy sq.DBProxyBeginner
 }
 
+// NewPostgresStorer creates a new Storer backed by a Postgres DB at the given dbURL and with the
+// given ChecksumIDGenerator.
 func NewPostgresStorer(dbURL string, idGen ChecksumIDGenerator) (Storer, error) {
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -30,7 +32,12 @@ func NewPostgresStorer(dbURL string, idGen ChecksumIDGenerator) (Storer, error) 
 }
 
 func (s *postgresStorer) PutEntity(e *api.Entity) (string, error) {
-	if err := validateEntity(e); err != nil {
+	if e.EntityId != "" {
+		if err := s.idGen.Check(e.EntityId); err != nil {
+			return "", err
+		}
+	}
+	if err := api.ValidateEntity(e); err != nil {
 		return "", err
 	}
 	insert, err := s.maybeAddEntityID(e)
@@ -49,7 +56,7 @@ func (s *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 		_, err = psql.Update(fqTbl).SetMap(vals).RunWith(tx).Exec()
 	}
 	if err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return "", err
 	}
 	return e.EntityId, tx.Commit()
