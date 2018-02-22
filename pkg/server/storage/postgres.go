@@ -1,12 +1,15 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	errors2 "github.com/drausin/libri/libri/common/errors"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/lib/pq"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -14,23 +17,31 @@ const (
 )
 
 var (
-	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	psql                     = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	errEmptyDBUrl            = errors.New("empty DB URL")
+	errUnexpectedStorageType = errors.New("unexpected storage type")
 )
 
 type postgresStorer struct {
+	params  *Parameters
 	idGen   ChecksumIDGenerator
 	db      *sql.DB
 	dbProxy sq.DBProxyBeginner
 }
 
-// NewPostgresStorer creates a new Storer backed by a Postgres DB at the given dbURL and with the
+// NewPostgres creates a new Storer backed by a Postgres DB at the given dbURL and with the
 // given ChecksumIDGenerator.
-func NewPostgresStorer(dbURL string, idGen ChecksumIDGenerator) (Storer, error) {
-	db, err := sql.Open("postgres", dbURL)
-	if err != nil {
-		return nil, err
+func NewPostgres(dbURL string, idGen ChecksumIDGenerator, params *Parameters) (Storer, error) {
+	if dbURL == "" {
+		return nil, errEmptyDBUrl
 	}
+	if params.Type != Postgres {
+		return nil, errUnexpectedStorageType
+	}
+	db, err := sql.Open("postgres", dbURL)
+	errors2.MaybePanic(err)
 	return &postgresStorer{
+		params:  params,
 		idGen:   idGen,
 		db:      db,
 		dbProxy: sq.NewStmtCacheProxy(db),
@@ -56,11 +67,13 @@ func (s *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 	}
 	fqTbl := getEntityType(e).fullTableName()
 	vals := toStmtValues(e)
+	ctx, cancel := context.WithTimeout(context.Background(), s.params.PutQueryTimeout)
 	if insert {
-		_, err = psql.Insert(fqTbl).SetMap(vals).RunWith(tx).Exec()
+		_, err = psql.Insert(fqTbl).SetMap(vals).RunWith(tx).ExecContext(ctx)
 	} else {
-		_, err = psql.Update(fqTbl).SetMap(vals).RunWith(tx).Exec()
+		_, err = psql.Update(fqTbl).SetMap(vals).RunWith(tx).ExecContext(ctx)
 	}
+	cancel()
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			if pqErr.Code == pqUniqueViolationErrCode {
@@ -78,12 +91,14 @@ func (s *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
 		return nil, err
 	}
 	et := getEntityTypeFromID(entityID)
+	ctx, cancel := context.WithTimeout(context.Background(), s.params.GetQueryTimeout)
 	row := psql.Select(fromRowCols(et)...).
 		From(et.fullTableName()).
 		Where(sq.Eq{entityIDCol: entityID}).
 		RunWith(s.db).
-		QueryRow()
+		QueryRowContext(ctx)
 	e, err := fromRow(row, entityID, et)
+	cancel()
 	if err == sql.ErrNoRows {
 		return nil, ErrMissingEntity
 	}

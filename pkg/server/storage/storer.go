@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"time"
+
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/pkg/errors"
 )
@@ -15,6 +17,28 @@ var (
 	errUnknownEntityType = errors.New("unknown entity type")
 )
 
+const (
+	// Unspecified indicates when the storage type is not specified (and thus should take the
+	// default value).
+	Unspecified Type = iota
+
+	// Postgres indicates storage backed by a Postgres DB.
+	Postgres
+)
+
+var (
+	// DefaultStorage is the default storage type.
+	DefaultStorage = Postgres
+
+	// DefaultPutQueryTimeout is the default timeout for DB INSERT or UPDATE queries used to in
+	// a Storer's PutEntity method.
+	DefaultPutQueryTimeout = 3 * time.Second
+
+	// DefaultGetQueryTimeout is the default timeout for DB INSERT or UPDATE queries used to in
+	// a Storer's GetEntity method.
+	DefaultGetQueryTimeout = 3 * time.Second
+)
+
 // Storer stores and retrieves entities.
 type Storer interface {
 
@@ -27,4 +51,32 @@ type Storer interface {
 
 	// Close handles any necessary cleanup.
 	Close() error
+}
+
+// Type indicates the storage backend type.
+type Type int
+
+func (t Type) String() string {
+	switch t {
+	case Postgres:
+		return "Postgres"
+	default:
+		return "Unspecified"
+	}
+}
+
+// Parameters defines the parameters of the Storer.
+type Parameters struct {
+	Type            Type
+	PutQueryTimeout time.Duration
+	GetQueryTimeout time.Duration
+}
+
+// NewDefaultParameters returns a *Parameters object with default values.
+func NewDefaultParameters() *Parameters {
+	return &Parameters{
+		Type:            DefaultStorage,
+		PutQueryTimeout: DefaultPutQueryTimeout,
+		GetQueryTimeout: DefaultGetQueryTimeout,
+	}
 }

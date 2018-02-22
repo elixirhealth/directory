@@ -1,16 +1,7 @@
 package cmd
 
-import (
-	"fmt"
-	"sync"
-	"testing"
-
-	"github.com/elxirhealth/directory/pkg/server"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap/zapcore"
-)
-
+/*
+TODO enable when have in-memory storer
 func TestTestIO(t *testing.T) {
 	// start in-memory directory w/o librarians, so all libri puts will just be queued
 	config := server.NewDefaultConfig()
@@ -38,3 +29,4 @@ func TestTestIO(t *testing.T) {
 	x.StopServer()
 	wg1.Wait()
 }
+*/

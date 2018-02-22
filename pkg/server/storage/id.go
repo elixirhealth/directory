@@ -1,6 +1,7 @@
 package storage
 
 import (
+	crand "crypto/rand"
 	"encoding/base32"
 	"io"
 
@@ -24,6 +25,10 @@ var (
 )
 
 const (
+	// DefaultIDLength defines the default length of a base-32 ID, including the prefix and
+	// checksum characters.
+	DefaultIDLength = 9
+
 	invalidCodePoint = 0xFF
 )
 
@@ -55,6 +60,12 @@ func NewNaiveIDGenerator(entropy io.Reader, length int) ChecksumIDGenerator {
 		entropy: entropy,
 		length:  length,
 	}
+}
+
+// NewDefaultIDGenerator returns a *naiveIDGenerator using the local machine's source of entropy
+// (via crypto/rand) and the default ID length.
+func NewDefaultIDGenerator() ChecksumIDGenerator {
+	return NewNaiveIDGenerator(crand.Reader, DefaultIDLength)
 }
 
 func (g *naiveIDGenerator) Generate(prefix string) (string, error) {
