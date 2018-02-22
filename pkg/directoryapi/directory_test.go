@@ -6,7 +6,61 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TODO add TestValidateENDPOINTRequest method for each service ENDPOINT
+var okEntity = &Entity{
+	TypeAttributes: &Entity_Patient{
+		Patient: &Patient{
+			LastName:  "Last Name",
+			FirstName: "First Name",
+			Birthdate: &Date{Year: 2006, Month: 1, Day: 2},
+		},
+	},
+}
+
+func TestValidatePutEntityRequest(t *testing.T) {
+	cases := map[string]struct {
+		rq       *PutEntityRequest
+		expected error
+	}{
+		"ok": {
+			rq: &PutEntityRequest{
+				Entity: okEntity,
+			},
+			expected: nil,
+		},
+		"invalid entity": {
+			rq: &PutEntityRequest{
+				Entity: &Entity{},
+			},
+			expected: ErrMissingTypeAttributes,
+		},
+	}
+
+	for desc, c := range cases {
+		err := ValidatePutEntityRequest(c.rq)
+		assert.Equal(t, c.expected, err, desc)
+	}
+}
+
+func TestValidateGetEntityRequest(t *testing.T) {
+	cases := map[string]struct {
+		rq       *GetEntityRequest
+		expected error
+	}{
+		"ok": {
+			rq:       &GetEntityRequest{EntityId: "some entity ID"},
+			expected: nil,
+		},
+		"missing entity ID": {
+			rq:       &GetEntityRequest{},
+			expected: ErrGetMissingEntityID,
+		},
+	}
+
+	for desc, c := range cases {
+		err := ValidateGetEntityRequest(c.rq)
+		assert.Equal(t, c.expected, err, desc)
+	}
+}
 
 func TestValidateEntity(t *testing.T) {
 	cases := map[string]struct {
@@ -14,15 +68,7 @@ func TestValidateEntity(t *testing.T) {
 		expected error
 	}{
 		"ok": {
-			e: &Entity{
-				TypeAttributes: &Entity_Patient{
-					Patient: &Patient{
-						LastName:  "Last Name",
-						FirstName: "First Name",
-						Birthdate: &Date{Year: 2006, Month: 1, Day: 2},
-					},
-				},
-			},
+			e:        okEntity,
 			expected: nil,
 		},
 		"missing type attributes": {

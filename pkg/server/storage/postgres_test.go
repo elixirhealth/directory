@@ -43,6 +43,35 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func TestNewPostgres_err(t *testing.T) {
+	rng := rand.New(rand.NewSource(0))
+	idGen := NewNaiveIDGenerator(rng, 9)
+	params := NewDefaultParameters()
+	cases := map[string]struct {
+		dbURL  string
+		idGen  ChecksumIDGenerator
+		params *Parameters
+	}{
+		"empty DB URL": {
+			idGen:  idGen,
+			params: params,
+		},
+		"wrong storage type": {
+			dbURL: "some DB URL",
+			idGen: idGen,
+			params: &Parameters{
+				Type: Unspecified,
+			},
+		},
+	}
+
+	for desc, c := range cases {
+		s, err := NewPostgres(c.dbURL, c.idGen, c.params)
+		assert.NotNil(t, err, desc)
+		assert.Nil(t, s, desc)
+	}
+}
+
 func TestPostgresStorer_PutGetEntity(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
 	defer func() {
@@ -52,7 +81,7 @@ func TestPostgresStorer_PutGetEntity(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(0))
 	idGen := NewNaiveIDGenerator(rng, 9)
-	s, err := NewPostgresStorer(dbURL, idGen)
+	s, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -134,7 +163,7 @@ func TestPostgresStorer_GetEntity_err(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(0))
 	idGen := NewNaiveIDGenerator(rng, 9)
-	s, err := NewPostgresStorer(dbURL, idGen)
+	s, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -204,7 +233,7 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	}
 
 	// two puts with same gen'd ID
-	s, err := NewPostgresStorer(dbURL, &fixedIDGen{generateID: okID})
+	s, err := NewPostgres(dbURL, &fixedIDGen{generateID: okID}, NewDefaultParameters())
 	assert.Nil(t, err)
 	okEntity.EntityId = ""
 	_, err = s.PutEntity(okEntity)

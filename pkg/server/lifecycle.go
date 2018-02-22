@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/drausin/libri/libri/common/errors"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"google.golang.org/grpc"
 )
@@ -12,9 +13,13 @@ func Start(config *Config, up chan *Directory) error {
 		return err
 	}
 
-	// start Directory aux routines
-	// TODO add go x.auxRoutine() or delete comment
-
 	registerServer := func(s *grpc.Server) { api.RegisterDirectoryServer(s, c) }
 	return c.Serve(registerServer, func() { up <- c })
+}
+
+// StopServer handles cleanup involved in closing down the server.
+func (d *Directory) StopServer() {
+	d.BaseServer.StopServer()
+	err := d.storer.Close()
+	errors.MaybePanic(err)
 }

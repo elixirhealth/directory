@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package directoryapi;
 
+// TODO comments
+
 service Directory {
     rpc PutEntity (PutEntityRequest) returns (PutEntityResponse) {}
     rpc GetEntity (GetEntityRequest) returns (GetEntityResponse) {}
