@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/elxirhealth/directory/pkg/server/storage/migrations"
@@ -241,6 +242,60 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	okEntity.EntityId = ""
 	_, err = s.PutEntity(okEntity)
 	assert.Equal(t, ErrDupGenEntityID, err)
+}
+
+func TestPreparePatientScan(t *testing.T) {
+	e1 := &api.Entity{
+		EntityId: "some entity ID",
+		TypeAttributes: &api.Entity_Patient{
+			Patient: &api.Patient{
+				LastName:   "Last Name 1",
+				FirstName:  "First Name 1",
+				MiddleName: "Middle Name 1",
+				Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
+			},
+		},
+	}
+	p1 := e1.TypeAttributes.(*api.Entity_Patient).Patient
+
+	cols, dest, scan := preparePatientScan()
+	assert.Equal(t, len(cols), len(dest))
+
+	// simulate row.Scan(dest...)
+	dest[0] = &e1.EntityId
+	dest[1] = &p1.LastName
+	dest[2] = &p1.FirstName
+	dest[3] = &p1.MiddleName
+	dest[4] = &p1.Suffix
+	birthdateTime, err := time.Parse("2006-01-02", p1.Birthdate.ISO8601())
+	assert.Nil(t, err)
+	dest[5] = &birthdateTime
+
+	e2 := scan()
+	assert.Equal(t, e1, e2)
+}
+
+func TestPrepareOfficeScan(t *testing.T) {
+	e1 := &api.Entity{
+		EntityId: "some entity ID",
+		TypeAttributes: &api.Entity_Office{
+			Office: &api.Office{
+				Name: "Name 1",
+			},
+		},
+	}
+	f1 := e1.TypeAttributes.(*api.Entity_Office).Office
+
+	cols, dest, scan := prepareOfficeScan()
+	assert.Equal(t, len(cols), len(dest))
+
+	// simulate row.Scan(dest...)
+	dest[0] = &e1.EntityId
+	dest[1] = &f1.Name
+
+	e2 := scan()
+	assert.Equal(t, e1, e2)
+
 }
 
 type fixedIDGen struct {

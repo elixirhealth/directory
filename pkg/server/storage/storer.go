@@ -67,9 +67,10 @@ func (t Type) String() string {
 
 // Parameters defines the parameters of the Storer.
 type Parameters struct {
-	Type            Type
-	PutQueryTimeout time.Duration
-	GetQueryTimeout time.Duration
+	Type               Type
+	PutQueryTimeout    time.Duration
+	GetQueryTimeout    time.Duration
+	SearchQueryTimeout time.Duration
 }
 
 // NewDefaultParameters returns a *Parameters object with default values.

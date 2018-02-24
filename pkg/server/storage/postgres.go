@@ -27,6 +27,7 @@ type postgresStorer struct {
 	idGen   ChecksumIDGenerator
 	db      *sql.DB
 	dbProxy sq.DBProxyBeginner
+	srm     searchResultMerger
 }
 
 // NewPostgres creates a new Storer backed by a Postgres DB at the given dbURL and with the
@@ -48,26 +49,26 @@ func NewPostgres(dbURL string, idGen ChecksumIDGenerator, params *Parameters) (S
 	}, nil
 }
 
-func (s *postgresStorer) PutEntity(e *api.Entity) (string, error) {
+func (ps *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 	if e.EntityId != "" {
-		if err := s.idGen.Check(e.EntityId); err != nil {
+		if err := ps.idGen.Check(e.EntityId); err != nil {
 			return "", err
 		}
 	}
 	if err := api.ValidateEntity(e); err != nil {
 		return "", err
 	}
-	insert, err := s.maybeAddEntityID(e)
+	insert, err := ps.maybeAddEntityID(e)
 	if err != nil {
 		return "", err
 	}
-	tx, err := s.dbProxy.Begin()
+	tx, err := ps.dbProxy.Begin()
 	if err != nil {
 		return "", err
 	}
 	fqTbl := getEntityType(e).fullTableName()
 	vals := toStmtValues(e)
-	ctx, cancel := context.WithTimeout(context.Background(), s.params.PutQueryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), ps.params.PutQueryTimeout)
 	if insert {
 		_, err = psql.Insert(fqTbl).SetMap(vals).RunWith(tx).ExecContext(ctx)
 	} else {
@@ -86,35 +87,74 @@ func (s *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 	return e.EntityId, tx.Commit()
 }
 
-func (s *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
-	if err := s.idGen.Check(entityID); err != nil {
+func (ps *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
+	if err := ps.idGen.Check(entityID); err != nil {
 		return nil, err
 	}
 	et := getEntityTypeFromID(entityID)
-	ctx, cancel := context.WithTimeout(context.Background(), s.params.GetQueryTimeout)
-	row := psql.Select(fromRowCols(et)...).
+	ctx, cancel := context.WithTimeout(context.Background(), ps.params.GetQueryTimeout)
+	defer cancel()
+	cols, dest, scan := prepareScan(et)
+	row := psql.Select(cols...).
 		From(et.fullTableName()).
 		Where(sq.Eq{entityIDCol: entityID}).
-		RunWith(s.db).
+		RunWith(ps.db).
 		QueryRowContext(ctx)
-	e, err := fromRow(row, entityID, et)
-	cancel()
-	if err == sql.ErrNoRows {
+	if err := row.Scan(dest...); err == sql.ErrNoRows {
 		return nil, ErrMissingEntity
+	} else if err != nil {
+		return nil, err
 	}
-	return e, err
+	return scan(), nil
 }
 
-func (s *postgresStorer) Close() error {
-	return s.db.Close()
+/*
+func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
+	// TODO (drausin) check query ok (len >= 3) and limit ok (> 0)
+	errs := make(chan error, len(searchers))
+
+	wg1 := new(sync.WaitGroup)
+	for _, s1 := range searchers {
+		wg1.Add(1)
+		go func(s2 searcher, wg2 *sync.WaitGroup) {
+			defer wg2.Done()
+			selectCols := append(fromGetRowCols(s2.entityType()), s2.similarity())
+			q := psql.Select(selectCols...).
+				From(s2.entityType().fullTableName()).
+				Where(s2.predicate(), s2.preprocQuery(query)).
+				OrderBy(similarityCol + " DESC").
+				Limit(uint64(limit))
+			ctx, cancel := context.WithTimeout(context.Background(),
+				ps.params.SearchQueryTimeout)
+			rows, err := q.RunWith(ps.dbProxy).QueryContext(ctx)
+			if err != nil && err != context.DeadlineExceeded {
+				errs <- err
+			}
+			ps.srm.merge(rows, s2.name(), s2.entityType())
+			cancel()
+		}(s1, wg1)
+	}
+	wg1.Wait()
+
+	select {
+	case err := <-errs:
+		return nil, err
+	default:
+		return ps.srm.top(limit)
+	}
+}
+*/
+
+func (ps *postgresStorer) Close() error {
+	return ps.db.Close()
 }
 
-func (s *postgresStorer) maybeAddEntityID(e *api.Entity) (added bool, err error) {
+func (ps *postgresStorer) maybeAddEntityID(e *api.Entity) (added bool, err error) {
 	if e.EntityId != "" {
 		return false, nil
 	}
 	idPrefix := getEntityType(e).idPrefix()
-	entityID, err := s.idGen.Generate(idPrefix)
+	entityID, err := ps.idGen.Generate(idPrefix)
 	if err != nil {
 		return false, err
 	}
@@ -123,8 +163,19 @@ func (s *postgresStorer) maybeAddEntityID(e *api.Entity) (added bool, err error)
 }
 
 const (
-	entitySchema = "entity"
-	entityIDCol  = "entity_id"
+	entitySchema  = "entity"
+	entityIDCol   = "entity_id"
+	similarityCol = "sim"
+
+	// patient attribute indexedValue
+	lastNameCol   = "last_name"
+	firstNameCol  = "first_name"
+	middleNameCol = "middle_name"
+	suffixCol     = "suffix"
+	birthdateCol  = "birthdate"
+
+	// office attribute indexedValue
+	nameCol = "name"
 )
 
 func (et entityType) fullTableName() string {
@@ -136,100 +187,101 @@ func toStmtValues(e *api.Entity) map[string]interface{} {
 	switch ta := e.TypeAttributes.(type) {
 	case *api.Entity_Patient:
 		vals = toPatientStmtValues(ta.Patient)
-		vals[entityIDCol] = e.EntityId
 	case *api.Entity_Office:
 		vals = toOfficeStmtValues(ta.Office)
-		vals[entityIDCol] = e.EntityId
 	default:
 		panic(errUnknownEntityType)
 	}
+	vals[entityIDCol] = e.EntityId
 	return vals
 }
 
-func fromRowCols(et entityType) []string {
+func prepareScan(et entityType) (cols []string, dest []interface{}, scan func() *api.Entity) {
 	switch et {
 	case patient:
-		return fromPatientRowCols
+		return preparePatientScan()
 	case office:
-		return fromOfficeRowCols
+		return prepareOfficeScan()
 	default:
 		panic(errUnknownEntityType)
 	}
 }
 
-func fromRow(row sq.RowScanner, entityID string, et entityType) (*api.Entity, error) {
-	switch et {
-	case patient:
-		return fromPatientRow(row, entityID)
-	case office:
-		return fromOfficeRow(row, entityID)
-	default:
-		panic(errUnknownEntityType)
-	}
-}
-
-var fromPatientRowCols = []string{
-	"last_name",
-	"first_name",
-	"middle_name",
-	"suffix",
-	"birthdate",
-}
-
-func fromPatientRow(row sq.RowScanner, entityID string) (*api.Entity, error) {
+func preparePatientScan() (cols []string, dest []interface{}, scan func() *api.Entity) {
 	p := &api.Patient{}
+	e := &api.Entity{TypeAttributes: &api.Entity_Patient{Patient: p}}
 	var birthdateTime time.Time
-	dest := []interface{}{
-		&p.LastName,
-		&p.FirstName,
-		&p.MiddleName,
-		&p.Suffix,
-		&birthdateTime,
+	colDests := []struct {
+		col  string
+		dest interface{}
+	}{
+		{entityIDCol, &e.EntityId},
+		{lastNameCol, &p.LastName},
+		{firstNameCol, &p.FirstName},
+		{middleNameCol, &p.MiddleName},
+		{suffixCol, &p.Suffix},
+		{birthdateCol, &birthdateTime},
 	}
-	if err := row.Scan(dest...); err != nil {
-		return nil, err
+	dest = make([]interface{}, len(colDests))
+	cols = make([]string, len(colDests))
+	for i, colDest := range colDests {
+		cols[i] = colDest.col
+		dest[i] = colDest.dest
 	}
-	p.Birthdate = &api.Date{
-		Year:  uint32(birthdateTime.Year()),
-		Month: uint32(birthdateTime.Month()),
-		Day:   uint32(birthdateTime.Day()),
+
+	return cols, dest, func() *api.Entity {
+		e.EntityId = *dest[0].(*string)
+		p.LastName = *dest[1].(*string)
+		p.FirstName = *dest[2].(*string)
+		p.MiddleName = *dest[3].(*string)
+		p.Suffix = *dest[4].(*string)
+		birthdateTime := *dest[5].(*time.Time)
+		p.Birthdate = &api.Date{
+			Year:  uint32(birthdateTime.Year()),
+			Month: uint32(birthdateTime.Month()),
+			Day:   uint32(birthdateTime.Day()),
+		}
+		return e
 	}
-	return &api.Entity{
-		EntityId:       entityID,
-		TypeAttributes: &api.Entity_Patient{Patient: p},
-	}, nil
+}
+
+func prepareOfficeScan() (cols []string, dest []interface{}, scan func() *api.Entity) {
+	f := &api.Office{}
+	e := &api.Entity{TypeAttributes: &api.Entity_Office{Office: f}}
+	colDests := []struct {
+		col  string
+		dest interface{}
+	}{
+		{entityIDCol, &e.EntityId},
+		{nameCol, &f.Name},
+	}
+
+	dest = make([]interface{}, len(colDests))
+	cols = make([]string, len(colDests))
+	for i, colDest := range colDests {
+		cols[i] = colDest.col
+		dest[i] = colDest.dest
+	}
+
+	return cols, dest, func() *api.Entity {
+		e.EntityId = *dest[0].(*string)
+		f.Name = *dest[1].(*string)
+		return e
+	}
 }
 
 func toPatientStmtValues(p *api.Patient) map[string]interface{} {
 	return map[string]interface{}{
-		"last_name":   p.LastName,
-		"first_name":  p.FirstName,
-		"middle_name": p.MiddleName,
-		"suffix":      p.Suffix,
-		"birthdate":   p.Birthdate.ISO8601(),
+		lastNameCol:   p.LastName,
+		firstNameCol:  p.FirstName,
+		middleNameCol: p.MiddleName,
+		suffixCol:     p.Suffix,
+		birthdateCol:  p.Birthdate.ISO8601(),
 	}
-}
-
-var fromOfficeRowCols = []string{
-	"name",
-}
-
-func fromOfficeRow(row sq.RowScanner, entityID string) (*api.Entity, error) {
-	f := &api.Office{}
-	dest := []interface{}{
-		&f.Name,
-	}
-	if err := row.Scan(dest...); err != nil {
-		return nil, err
-	}
-	return &api.Entity{
-		EntityId:       entityID,
-		TypeAttributes: &api.Entity_Office{Office: f},
-	}, nil
 }
 
 func toOfficeStmtValues(f *api.Office) map[string]interface{} {
 	return map[string]interface{}{
-		"name": f.Name,
+		nameCol: f.Name,
 	}
 }
