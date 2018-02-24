@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 
 func TestNewPostgres_err(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
-	idGen := NewNaiveIDGenerator(rng, 9)
+	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
 	params := NewDefaultParameters()
 	cases := map[string]struct {
 		dbURL  string
@@ -81,7 +81,7 @@ func TestPostgresStorer_PutGetEntity(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
-	idGen := NewNaiveIDGenerator(rng, 9)
+	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
 	s, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -91,43 +91,25 @@ func TestPostgresStorer_PutGetEntity(t *testing.T) {
 		updated  *api.Entity
 	}{
 		patient: {
-			original: &api.Entity{
-				TypeAttributes: &api.Entity_Patient{
-					Patient: &api.Patient{
-						LastName:   "Last Name 1",
-						FirstName:  "First Name 1",
-						MiddleName: "Middle Name 1",
-						Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
-					},
-				},
-			},
-			updated: &api.Entity{
-				TypeAttributes: &api.Entity_Patient{
-					Patient: &api.Patient{
-						LastName:   "Last Name 2",
-						FirstName:  "First Name 1",
-						MiddleName: "Middle Name 1",
-						Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
-					},
-				},
-			},
+			original: api.NewPatient("", &api.Patient{
+				LastName:  "Last Name 1",
+				FirstName: "First Name 1",
+				Birthdate: &api.Date{Year: 2006, Month: 1, Day: 2},
+			}),
+			updated: api.NewPatient("", &api.Patient{
+				LastName:  "Last Name 2",
+				FirstName: "First Name 1",
+				Birthdate: &api.Date{Year: 2006, Month: 1, Day: 2},
+			}),
 		},
 
 		office: {
-			original: &api.Entity{
-				TypeAttributes: &api.Entity_Office{
-					Office: &api.Office{
-						Name: "Name 1",
-					},
-				},
-			},
-			updated: &api.Entity{
-				TypeAttributes: &api.Entity_Office{
-					Office: &api.Office{
-						Name: "Name 2",
-					},
-				},
-			},
+			original: api.NewOffice("", &api.Office{
+				Name: "Name 1",
+			}),
+			updated: api.NewOffice("", &api.Office{
+				Name: "Name 2",
+			}),
 		},
 	}
 	assert.Equal(t, nEntityTypes, len(cases))
@@ -163,7 +145,7 @@ func TestPostgresStorer_GetEntity_err(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
-	idGen := NewNaiveIDGenerator(rng, 9)
+	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
 	s, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -189,19 +171,10 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
-	okIDGen := NewNaiveIDGenerator(rng, 9)
+	okIDGen := NewNaiveIDGenerator(rng, DefaultIDLength)
 	okID, err := okIDGen.Generate(patient.idPrefix())
 	assert.Nil(t, err)
-	okEntity := &api.Entity{
-		TypeAttributes: &api.Entity_Patient{
-			Patient: &api.Patient{
-				LastName:   "Last Name 1",
-				FirstName:  "First Name 1",
-				MiddleName: "Middle Name 1",
-				Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
-			},
-		},
-	}
+	okEntity := api.NewTestPatient(0, false)
 
 	cases := map[string]struct {
 		s *postgresStorer
@@ -244,21 +217,70 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	assert.Equal(t, ErrDupGenEntityID, err)
 }
 
-func TestPreparePatientScan(t *testing.T) {
-	e1 := &api.Entity{
-		EntityId: "some entity ID",
-		TypeAttributes: &api.Entity_Patient{
-			Patient: &api.Patient{
-				LastName:   "Last Name 1",
-				FirstName:  "First Name 1",
-				MiddleName: "Middle Name 1",
-				Birthdate:  &api.Date{Year: 2006, Month: 1, Day: 2},
-			},
-		},
+func TestPostgresStorer_SearchEntity(t *testing.T) {
+	dbURL, tearDown := setUpPostgresTest(t)
+	defer func() {
+		err := tearDown()
+		assert.Nil(t, err)
+	}()
+
+	rng := rand.New(rand.NewSource(0))
+	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
+	s, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+
+	es := []*api.Entity{
+		api.NewTestPatient(1, false),
+		api.NewTestPatient(2, false),
+		api.NewTestPatient(3, false),
+		api.NewTestPatient(4, false),
+		api.NewTestOffice(1, false),
+		api.NewTestOffice(2, false),
+		api.NewTestOffice(3, false),
+		api.NewTestOffice(4, false),
 	}
+	entityIDs := make([]string, len(es))
+	for i, e := range es {
+		entityID, err := s.PutEntity(e)
+		entityIDs[i] = entityID
+		assert.Nil(t, err)
+	}
+
+	limit := uint(3)
+
+	query := "Office Name 1"
+	found, err := s.SearchEntity(query, limit)
+	assert.Nil(t, err)
+	assert.Equal(t, limit, uint(len(found)))
+
+	// check that first result is the office with the name that matches the query
+	f, ok := found[0].TypeAttributes.(*api.Entity_Office)
+	assert.True(t, ok)
+	assert.Equal(t, query, f.Office.Name)
+
+	// check that second and third results are also offices
+	_, ok = found[1].TypeAttributes.(*api.Entity_Office)
+	assert.True(t, ok)
+	_, ok = found[2].TypeAttributes.(*api.Entity_Office)
+	assert.True(t, ok)
+
+	query = entityIDs[1] // 2nd patient
+	found, err = s.SearchEntity(query, limit)
+	assert.Nil(t, err)
+	assert.Equal(t, limit, uint(len(found)))
+
+	// check that first result is the patient with an entityID that matches the query
+	_, ok = found[0].TypeAttributes.(*api.Entity_Patient)
+	assert.True(t, ok)
+	assert.Equal(t, query, found[0].EntityId)
+}
+
+func TestPreparePatientScan(t *testing.T) {
+	e1 := api.NewTestPatient(0, true)
 	p1 := e1.TypeAttributes.(*api.Entity_Patient).Patient
 
-	cols, dest, scan := preparePatientScan()
+	cols, dest, scan := prepPatientScan(0)
 	assert.Equal(t, len(cols), len(dest))
 
 	// simulate row.Scan(dest...)
@@ -286,7 +308,7 @@ func TestPrepareOfficeScan(t *testing.T) {
 	}
 	f1 := e1.TypeAttributes.(*api.Entity_Office).Office
 
-	cols, dest, scan := prepareOfficeScan()
+	cols, dest, scan := prepOfficeScan(0)
 	assert.Equal(t, len(cols), len(dest))
 
 	// simulate row.Scan(dest...)
@@ -295,7 +317,6 @@ func TestPrepareOfficeScan(t *testing.T) {
 
 	e2 := scan()
 	assert.Equal(t, e1, e2)
-
 }
 
 type fixedIDGen struct {

@@ -32,11 +32,13 @@ var (
 
 	// DefaultPutQueryTimeout is the default timeout for DB INSERT or UPDATE queries used to in
 	// a Storer's PutEntity method.
-	DefaultPutQueryTimeout = 3 * time.Second
+	DefaultPutQueryTimeout = 2 * time.Second
 
 	// DefaultGetQueryTimeout is the default timeout for DB INSERT or UPDATE queries used to in
 	// a Storer's GetEntity method.
-	DefaultGetQueryTimeout = 3 * time.Second
+	DefaultGetQueryTimeout = 2 * time.Second
+
+	DefaultSearchQueryTimeout = 2 * time.Second
 )
 
 // Storer stores and retrieves entities.
@@ -48,6 +50,8 @@ type Storer interface {
 
 	// GetEntity retrives the entity with the given entityID.
 	GetEntity(entityID string) (*api.Entity, error)
+
+	SearchEntity(query string, limit uint) ([]*api.Entity, error)
 
 	// Close handles any necessary cleanup.
 	Close() error
@@ -76,8 +80,9 @@ type Parameters struct {
 // NewDefaultParameters returns a *Parameters object with default values.
 func NewDefaultParameters() *Parameters {
 	return &Parameters{
-		Type:            DefaultStorage,
-		PutQueryTimeout: DefaultPutQueryTimeout,
-		GetQueryTimeout: DefaultGetQueryTimeout,
+		Type:               DefaultStorage,
+		PutQueryTimeout:    DefaultPutQueryTimeout,
+		GetQueryTimeout:    DefaultGetQueryTimeout,
+		SearchQueryTimeout: DefaultSearchQueryTimeout,
 	}
 }

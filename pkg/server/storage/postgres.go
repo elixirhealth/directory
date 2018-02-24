@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -46,6 +47,7 @@ func NewPostgres(dbURL string, idGen ChecksumIDGenerator, params *Parameters) (S
 		idGen:   idGen,
 		db:      db,
 		dbProxy: sq.NewStmtCacheProxy(db),
+		srm:     newSearchResultMerger(),
 	}, nil
 }
 
@@ -94,7 +96,7 @@ func (ps *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
 	et := getEntityTypeFromID(entityID)
 	ctx, cancel := context.WithTimeout(context.Background(), ps.params.GetQueryTimeout)
 	defer cancel()
-	cols, dest, scan := prepareScan(et)
+	cols, dest, scan := prepEntityScan(et, 0)
 	row := psql.Select(cols...).
 		From(et.fullTableName()).
 		Where(sq.Eq{entityIDCol: entityID}).
@@ -108,7 +110,6 @@ func (ps *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
 	return scan(), nil
 }
 
-/*
 func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
 	// TODO (drausin) check query ok (len >= 3) and limit ok (> 0)
 	errs := make(chan error, len(searchers))
@@ -118,7 +119,8 @@ func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity,
 		wg1.Add(1)
 		go func(s2 searcher, wg2 *sync.WaitGroup) {
 			defer wg2.Done()
-			selectCols := append(fromGetRowCols(s2.entityType()), s2.similarity())
+			entityCols, _, _ := prepEntityScan(s2.entityType(), 0)
+			selectCols := append(entityCols, s2.similarity())
 			q := psql.Select(selectCols...).
 				From(s2.entityType().fullTableName()).
 				Where(s2.predicate(), s2.preprocQuery(query)).
@@ -126,24 +128,38 @@ func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity,
 				Limit(uint64(limit))
 			ctx, cancel := context.WithTimeout(context.Background(),
 				ps.params.SearchQueryTimeout)
-			rows, err := q.RunWith(ps.dbProxy).QueryContext(ctx)
+			rows, err := q.RunWith(ps.db).QueryContext(ctx)
 			if err != nil && err != context.DeadlineExceeded {
 				errs <- err
+				return
+			} else if err == context.DeadlineExceeded {
+				return
 			}
-			ps.srm.merge(rows, s2.name(), s2.entityType())
+			if err := ps.srm.merge(rows, s2.name(), s2.entityType()); err != nil {
+				errs <- err
+				return
+			}
 			cancel()
+			if err := rows.Err(); err != nil {
+				errs <- err
+				return
+			}
 		}(s1, wg1)
 	}
 	wg1.Wait()
-
 	select {
 	case err := <-errs:
 		return nil, err
 	default:
-		return ps.srm.top(limit)
 	}
+
+	// return just the entities, without their granular or norm'd similarity scores
+	es := make([]*api.Entity, limit)
+	for i, eSim := range ps.srm.top(limit) {
+		es[i] = eSim.e
+	}
+	return es, nil
 }
-*/
 
 func (ps *postgresStorer) Close() error {
 	return ps.db.Close()
@@ -196,18 +212,20 @@ func toStmtValues(e *api.Entity) map[string]interface{} {
 	return vals
 }
 
-func prepareScan(et entityType) (cols []string, dest []interface{}, scan func() *api.Entity) {
+func prepEntityScan(
+	et entityType, extraDest int,
+) (cols []string, dest []interface{}, create func() *api.Entity) {
 	switch et {
 	case patient:
-		return preparePatientScan()
+		return prepPatientScan(extraDest)
 	case office:
-		return prepareOfficeScan()
+		return prepOfficeScan(extraDest)
 	default:
 		panic(errUnknownEntityType)
 	}
 }
 
-func preparePatientScan() (cols []string, dest []interface{}, scan func() *api.Entity) {
+func prepPatientScan(extraDest int) (cols []string, dest []interface{}, create func() *api.Entity) {
 	p := &api.Patient{}
 	e := &api.Entity{TypeAttributes: &api.Entity_Patient{Patient: p}}
 	var birthdateTime time.Time
@@ -222,7 +240,7 @@ func preparePatientScan() (cols []string, dest []interface{}, scan func() *api.E
 		{suffixCol, &p.Suffix},
 		{birthdateCol, &birthdateTime},
 	}
-	dest = make([]interface{}, len(colDests))
+	dest = make([]interface{}, len(colDests), len(colDests)+extraDest)
 	cols = make([]string, len(colDests))
 	for i, colDest := range colDests {
 		cols[i] = colDest.col
@@ -245,7 +263,7 @@ func preparePatientScan() (cols []string, dest []interface{}, scan func() *api.E
 	}
 }
 
-func prepareOfficeScan() (cols []string, dest []interface{}, scan func() *api.Entity) {
+func prepOfficeScan(extraDest int) (cols []string, dest []interface{}, create func() *api.Entity) {
 	f := &api.Office{}
 	e := &api.Entity{TypeAttributes: &api.Entity_Office{Office: f}}
 	colDests := []struct {
@@ -256,7 +274,7 @@ func prepareOfficeScan() (cols []string, dest []interface{}, scan func() *api.En
 		{nameCol, &f.Name},
 	}
 
-	dest = make([]interface{}, len(colDests))
+	dest = make([]interface{}, len(colDests), len(colDests)+extraDest)
 	cols = make([]string, len(colDests))
 	for i, colDest := range colDests {
 		cols[i] = colDest.col

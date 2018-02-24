@@ -99,3 +99,44 @@ func (m *Entity) Type() string {
 func (m *Date) ISO8601() string {
 	return fmt.Sprintf("%04d-%02d-%02d", m.Year, m.Month, m.Day)
 }
+
+func NewPatient(entityID string, p *Patient) *Entity {
+	return &Entity{
+		EntityId: entityID,
+		TypeAttributes: &Entity_Patient{
+			Patient: p,
+		},
+	}
+}
+
+func NewOffice(entityID string, f *Office) *Entity {
+	return &Entity{
+		EntityId: entityID,
+		TypeAttributes: &Entity_Office{
+			Office: f,
+		},
+	}
+}
+
+func NewTestPatient(i int, addID bool) *Entity {
+	entityID := ""
+	if addID {
+		entityID = fmt.Sprintf("entity %d", i)
+	}
+	return NewPatient(entityID, &Patient{
+		LastName:   fmt.Sprintf("Last Name %d", i),
+		FirstName:  fmt.Sprintf("First Name %d", i),
+		MiddleName: fmt.Sprintf("Middle Name %d", i),
+		Birthdate:  &Date{Year: 2006, Month: 1, Day: 1 + uint32(i)},
+	})
+}
+
+func NewTestOffice(i int, addID bool) *Entity {
+	entityID := ""
+	if addID {
+		entityID = fmt.Sprintf("entity %d", i)
+	}
+	return NewOffice(entityID, &Office{
+		Name: fmt.Sprintf("Office Name %d", i),
+	})
+}
