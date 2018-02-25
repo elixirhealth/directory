@@ -1,13 +1,17 @@
 package storage
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/elxirhealth/directory/pkg/server/storage/migrations"
 	"github.com/elxirhealth/service-base/pkg/server/storage"
@@ -17,6 +21,8 @@ import (
 
 var (
 	setUpPostgresTest func(t *testing.T) (dbURL string, tearDown func() error)
+
+	errTest = errors.New("test error")
 )
 
 func TestMain(m *testing.M) {
@@ -73,7 +79,7 @@ func TestNewPostgres_err(t *testing.T) {
 	}
 }
 
-func TestPostgresStorer_PutGetEntity(t *testing.T) {
+func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
 	defer func() {
 		err := tearDown()
@@ -217,7 +223,7 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	assert.Equal(t, ErrDupGenEntityID, err)
 }
 
-func TestPostgresStorer_SearchEntity(t *testing.T) {
+func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
 	defer func() {
 		err := tearDown()
@@ -249,7 +255,7 @@ func TestPostgresStorer_SearchEntity(t *testing.T) {
 
 	limit := uint(3)
 
-	query := "Office Name 1"
+	query := "ice name 1" // query unanchored substring with diff case
 	found, err := s.SearchEntity(query, limit)
 	assert.Nil(t, err)
 	assert.Equal(t, limit, uint(len(found)))
@@ -257,7 +263,7 @@ func TestPostgresStorer_SearchEntity(t *testing.T) {
 	// check that first result is the office with the name that matches the query
 	f, ok := found[0].TypeAttributes.(*api.Entity_Office)
 	assert.True(t, ok)
-	assert.Equal(t, query, f.Office.Name)
+	assert.True(t, strings.Contains(f.Office.Name, query))
 
 	// check that second and third results are also offices
 	_, ok = found[1].TypeAttributes.(*api.Entity_Office)
@@ -265,7 +271,7 @@ func TestPostgresStorer_SearchEntity(t *testing.T) {
 	_, ok = found[2].TypeAttributes.(*api.Entity_Office)
 	assert.True(t, ok)
 
-	query = entityIDs[1] // 2nd patient
+	query = strings.ToLower(entityIDs[1]) // 2nd patient's entityID diff case
 	found, err = s.SearchEntity(query, limit)
 	assert.Nil(t, err)
 	assert.Equal(t, limit, uint(len(found)))
@@ -274,6 +280,125 @@ func TestPostgresStorer_SearchEntity(t *testing.T) {
 	_, ok = found[0].TypeAttributes.(*api.Entity_Patient)
 	assert.True(t, ok)
 	assert.Equal(t, query, found[0].EntityId)
+}
+
+func TestPostgresStorer_SearchEntity_err(t *testing.T) {
+	dbURL, tearDown := setUpPostgresTest(t)
+	defer func() {
+		err := tearDown()
+		assert.Nil(t, err)
+	}()
+
+	rng := rand.New(rand.NewSource(0))
+	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
+	params := NewDefaultParameters()
+	okStorer, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
+	assert.Nil(t, err)
+	assert.NotNil(t, okStorer)
+
+	okQuery := "some query"
+	okLimit := uint(3)
+
+	cases := map[string]struct {
+		getStorer func() Storer
+		query     string
+		limit     uint
+		expected  error
+	}{
+		"query too short": {
+			getStorer: func() Storer { return okStorer },
+			query:     "A",
+			limit:     okLimit,
+			expected:  ErrSearchQueryTooShort,
+		},
+		"query too long": {
+			getStorer: func() Storer { return okStorer },
+			query:     strings.Repeat("A", 33),
+			limit:     okLimit,
+			expected:  ErrSearchQueryTooLong,
+		},
+		"limit too small": {
+			getStorer: func() Storer { return okStorer },
+			query:     okQuery,
+			limit:     0,
+			expected:  ErrSearchLimitTooSmall,
+		},
+		"limit too large": {
+			getStorer: func() Storer { return okStorer },
+			query:     okQuery,
+			limit:     9,
+			expected:  ErrSearchLimitTooLarge,
+		},
+		"unexpected query error": {
+			getStorer: func() Storer {
+				s, err := NewPostgres(dbURL, idGen, params)
+				assert.Nil(t, err)
+				assert.NotNil(t, s)
+				s.(*postgresStorer).qr = &fixedQuerier{selectQueryErr: errTest}
+				return s
+
+			},
+			query:    okQuery,
+			limit:    okLimit,
+			expected: errTest,
+		},
+		"unexpected merge error": {
+			getStorer: func() Storer {
+				s, err := NewPostgres(dbURL, idGen, params)
+				assert.Nil(t, err)
+				assert.NotNil(t, s)
+				s.(*postgresStorer).qr = &fixedQuerier{}
+				s.(*postgresStorer).srm = &fixedSearchResultsMerger{
+					mergeErr: errTest,
+				}
+				return s
+			},
+			query:    okQuery,
+			limit:    okLimit,
+			expected: errTest,
+		},
+		"rows error": {
+			getStorer: func() Storer {
+				s, err := NewPostgres(dbURL, idGen, params)
+				assert.Nil(t, err)
+				assert.NotNil(t, s)
+				s.(*postgresStorer).qr = &fixedQuerier{
+					selectQueryRows: &fixedOfficeRows{
+						errErr: errTest,
+					},
+				}
+				s.(*postgresStorer).srm = &fixedSearchResultsMerger{}
+				return s
+			},
+			query:    okQuery,
+			limit:    okLimit,
+			expected: errTest,
+		},
+		"rows close error": {
+			getStorer: func() Storer {
+				s, err := NewPostgres(dbURL, idGen, params)
+				assert.Nil(t, err)
+				assert.NotNil(t, s)
+				s.(*postgresStorer).qr = &fixedQuerier{
+					selectQueryRows: &fixedOfficeRows{
+						closeErr: errTest,
+					},
+				}
+				s.(*postgresStorer).srm = &fixedSearchResultsMerger{}
+				return s
+			},
+			query:    okQuery,
+			limit:    okLimit,
+			expected: errTest,
+		},
+	}
+
+	for desc, c := range cases {
+		s := c.getStorer()
+		result, err := s.SearchEntity(c.query, c.limit)
+		assert.Equal(t, c.expected, err, desc)
+		assert.Nil(t, result, desc)
+	}
 }
 
 func TestPreparePatientScan(t *testing.T) {
@@ -331,4 +456,38 @@ func (f *fixedIDGen) Check(id string) error {
 
 func (f *fixedIDGen) Generate(prefix string) (string, error) {
 	return f.generateID, f.generateErr
+}
+
+type fixedQuerier struct {
+	selectQueryRows rows
+	selectQueryErr  error
+}
+
+func (f *fixedQuerier) SelectQueryContext(ctx context.Context, b sq.SelectBuilder) (rows, error) {
+	return f.selectQueryRows, f.selectQueryErr
+}
+
+func (f *fixedQuerier) SelectQueryRowContext(ctx context.Context, b sq.SelectBuilder) sq.RowScanner {
+	panic("implement me")
+}
+
+func (f *fixedQuerier) InsertExecContext(ctx context.Context, b sq.InsertBuilder) (sql.Result, error) {
+	panic("implement me")
+}
+
+func (f *fixedQuerier) UpdateExecContext(ctx context.Context, b sq.UpdateBuilder) (sql.Result, error) {
+	panic("implement me")
+}
+
+type fixedSearchResultsMerger struct {
+	mergeErr      error
+	topEntitySims entitySims
+}
+
+func (srm *fixedSearchResultsMerger) merge(rows rows, searchName string, et entityType) error {
+	return srm.mergeErr
+}
+
+func (srm *fixedSearchResultsMerger) top(n uint) entitySims {
+	return srm.topEntitySims
 }

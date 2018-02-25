@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sync"
 	"time"
 
@@ -15,10 +16,24 @@ import (
 
 const (
 	pqUniqueViolationErrCode = "23505"
+	minSearchQueryLen        = 4
+	maxSearchQueryLen        = 32
+	minSearchLimit           = 1
+	maxSearchLimit           = 8
 )
 
 var (
-	psql                     = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	ErrSearchQueryTooShort = fmt.Errorf("search query shorter than min length %d",
+		minSearchQueryLen)
+	ErrSearchQueryTooLong = fmt.Errorf("search query longer than max length %d",
+		maxSearchQueryLen)
+	ErrSearchLimitTooSmall = fmt.Errorf("search limit smaller than min length %d",
+		minSearchLimit)
+	ErrSearchLimitTooLarge = fmt.Errorf("search limit larger than max length %d",
+		maxSearchLimit)
+
 	errEmptyDBUrl            = errors.New("empty DB URL")
 	errUnexpectedStorageType = errors.New("unexpected storage type")
 )
@@ -27,7 +42,8 @@ type postgresStorer struct {
 	params  *Parameters
 	idGen   ChecksumIDGenerator
 	db      *sql.DB
-	dbProxy sq.DBProxyBeginner
+	dbCache sq.DBProxyContext
+	qr      querier
 	srm     searchResultMerger
 }
 
@@ -46,7 +62,8 @@ func NewPostgres(dbURL string, idGen ChecksumIDGenerator, params *Parameters) (S
 		params:  params,
 		idGen:   idGen,
 		db:      db,
-		dbProxy: sq.NewStmtCacheProxy(db),
+		dbCache: sq.NewStmtCacher(db),
+		qr:      &querierImpl{},
 		srm:     newSearchResultMerger(),
 	}, nil
 }
@@ -64,7 +81,7 @@ func (ps *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	tx, err := ps.dbProxy.Begin()
+	tx, err := ps.db.Begin()
 	if err != nil {
 		return "", err
 	}
@@ -72,9 +89,11 @@ func (ps *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 	vals := toStmtValues(e)
 	ctx, cancel := context.WithTimeout(context.Background(), ps.params.PutQueryTimeout)
 	if insert {
-		_, err = psql.Insert(fqTbl).SetMap(vals).RunWith(tx).ExecContext(ctx)
+		q := psql.RunWith(tx).Insert(fqTbl).SetMap(vals)
+		_, err = ps.qr.InsertExecContext(ctx, q)
 	} else {
-		_, err = psql.Update(fqTbl).SetMap(vals).RunWith(tx).ExecContext(ctx)
+		q := psql.RunWith(tx).Update(fqTbl).SetMap(vals)
+		_, err = ps.qr.UpdateExecContext(ctx, q)
 	}
 	cancel()
 	if err != nil {
@@ -94,26 +113,27 @@ func (ps *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
 		return nil, err
 	}
 	et := getEntityTypeFromID(entityID)
+	cols, dest, create := prepEntityScan(et, 0)
+	q := psql.RunWith(ps.dbCache).
+		Select(cols...).
+		From(et.fullTableName()).
+		Where(sq.Eq{entityIDCol: entityID})
 	ctx, cancel := context.WithTimeout(context.Background(), ps.params.GetQueryTimeout)
 	defer cancel()
-	cols, dest, scan := prepEntityScan(et, 0)
-	row := psql.Select(cols...).
-		From(et.fullTableName()).
-		Where(sq.Eq{entityIDCol: entityID}).
-		RunWith(ps.db).
-		QueryRowContext(ctx)
+	row := ps.qr.SelectQueryRowContext(ctx, q)
 	if err := row.Scan(dest...); err == sql.ErrNoRows {
 		return nil, ErrMissingEntity
 	} else if err != nil {
 		return nil, err
 	}
-	return scan(), nil
+	return create(), nil
 }
 
 func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
-	// TODO (drausin) check query ok (len >= 3) and limit ok (> 0)
+	if err := ps.validateSearchQuery(query, limit); err != nil {
+		return nil, err
+	}
 	errs := make(chan error, len(searchers))
-
 	wg1 := new(sync.WaitGroup)
 	for _, s1 := range searchers {
 		wg1.Add(1)
@@ -121,26 +141,31 @@ func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity,
 			defer wg2.Done()
 			entityCols, _, _ := prepEntityScan(s2.entityType(), 0)
 			selectCols := append(entityCols, s2.similarity())
-			q := psql.Select(selectCols...).
+			q := psql.RunWith(ps.dbCache).
+				Select(selectCols...).
 				From(s2.entityType().fullTableName()).
 				Where(s2.predicate(), s2.preprocQuery(query)).
 				OrderBy(similarityCol + " DESC").
 				Limit(uint64(limit))
 			ctx, cancel := context.WithTimeout(context.Background(),
 				ps.params.SearchQueryTimeout)
-			rows, err := q.RunWith(ps.db).QueryContext(ctx)
-			if err != nil && err != context.DeadlineExceeded {
-				errs <- err
-				return
-			} else if err == context.DeadlineExceeded {
+			defer cancel()
+			rows, err := ps.qr.SelectQueryContext(ctx, q)
+			if err != nil {
+				if err != context.DeadlineExceeded && err != sql.ErrNoRows {
+					errs <- err
+				}
 				return
 			}
 			if err := ps.srm.merge(rows, s2.name(), s2.entityType()); err != nil {
 				errs <- err
 				return
 			}
-			cancel()
 			if err := rows.Err(); err != nil {
+				errs <- err
+				return
+			}
+			if err := rows.Close(); err != nil {
 				errs <- err
 				return
 			}
@@ -176,6 +201,63 @@ func (ps *postgresStorer) maybeAddEntityID(e *api.Entity) (added bool, err error
 	}
 	e.EntityId = entityID
 	return true, nil
+}
+
+func (ps *postgresStorer) validateSearchQuery(query string, limit uint) error {
+	if len(query) < minSearchQueryLen {
+		return ErrSearchQueryTooShort
+	}
+	if len(query) > maxSearchQueryLen {
+		return ErrSearchQueryTooLong
+	}
+	if limit > maxSearchLimit {
+		return ErrSearchLimitTooLarge
+	}
+	if limit < minSearchLimit {
+		return ErrSearchLimitTooSmall
+	}
+	return nil
+}
+
+type rows interface {
+	Scan(dest ...interface{}) error
+	Next() bool
+	Close() error
+	Err() error
+}
+
+type querier interface {
+	SelectQueryContext(ctx context.Context, b sq.SelectBuilder) (rows, error)
+	SelectQueryRowContext(ctx context.Context, b sq.SelectBuilder) sq.RowScanner
+	InsertExecContext(ctx context.Context, b sq.InsertBuilder) (sql.Result, error)
+	UpdateExecContext(ctx context.Context, b sq.UpdateBuilder) (sql.Result, error)
+}
+
+type querierImpl struct {
+}
+
+func (q *querierImpl) SelectQueryContext(
+	ctx context.Context, b sq.SelectBuilder,
+) (rows, error) {
+	return b.QueryContext(ctx)
+}
+
+func (q *querierImpl) SelectQueryRowContext(
+	ctx context.Context, b sq.SelectBuilder,
+) sq.RowScanner {
+	return b.QueryRowContext(ctx)
+}
+
+func (q *querierImpl) InsertExecContext(
+	ctx context.Context, b sq.InsertBuilder,
+) (sql.Result, error) {
+	return b.ExecContext(ctx)
+}
+
+func (q *querierImpl) UpdateExecContext(
+	ctx context.Context, b sq.UpdateBuilder,
+) (sql.Result, error) {
+	return b.ExecContext(ctx)
 }
 
 const (

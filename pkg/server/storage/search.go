@@ -128,12 +128,6 @@ func newSearchResultMerger() searchResultMerger {
 	}
 }
 
-type rows interface {
-	Scan(dest ...interface{}) error
-	Next() bool
-	Close() error
-}
-
 func (srm *searchResultMergerImpl) merge(rs rows, searchName string, et entityType) error {
 	defer rs.Close()
 	for rs.Next() {

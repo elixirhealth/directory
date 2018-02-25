@@ -108,8 +108,14 @@ func TestEntitySim(t *testing.T) {
 }
 
 type fixedOfficeRows struct {
-	ess    entitySims
-	cursor int
+	ess      entitySims
+	cursor   int
+	errErr   error
+	closeErr error
+}
+
+func (fr *fixedOfficeRows) Err() error {
+	return fr.errErr
 }
 
 func (fr *fixedOfficeRows) Scan(dest ...interface{}) error {
@@ -128,5 +134,5 @@ func (fr *fixedOfficeRows) Next() bool {
 }
 
 func (fr *fixedOfficeRows) Close() error {
-	return nil
+	return fr.closeErr
 }
