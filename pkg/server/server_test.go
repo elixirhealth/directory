@@ -136,11 +136,13 @@ func TestDirectory_GetEntity_err(t *testing.T) {
 }
 
 type fixedStorer struct {
-	putEntityID string
-	putErr      error
-	getEntity   *api.Entity
-	getErr      error
-	closeErr    error
+	putEntityID    string
+	putErr         error
+	getEntity      *api.Entity
+	getErr         error
+	searchEntities []*api.Entity
+	searchErr      error
+	closeErr       error
 }
 
 func (f *fixedStorer) PutEntity(e *api.Entity) (string, error) {
@@ -149,6 +151,10 @@ func (f *fixedStorer) PutEntity(e *api.Entity) (string, error) {
 
 func (f *fixedStorer) GetEntity(entityID string) (*api.Entity, error) {
 	return f.getEntity, f.getErr
+}
+
+func (f *fixedStorer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
+	return f.searchEntities, f.searchErr
 }
 
 func (f *fixedStorer) Close() error {

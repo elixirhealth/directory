@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"math"
 	"time"
 
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
@@ -14,7 +15,7 @@ var (
 	// ErrDupGenEntityID indicates when a newly generated entity ID already exists.
 	ErrDupGenEntityID = errors.New("duplicate entity ID generated")
 
-	errUnknownEntityType = errors.New("unknown entity type")
+	ErrUnknownEntityType = errors.New("unknown entity type")
 )
 
 const (
@@ -44,7 +45,7 @@ var (
 // Storer stores and retrieves entities.
 type Storer interface {
 
-	// PutEntity inserts a new or updates an existing entity (based on e.EntityId) and returns
+	// PutEntity inserts a new or updates an existing entity (based on E.EntityId) and returns
 	// the entity ID.
 	PutEntity(e *api.Entity) (string, error)
 
@@ -85,4 +86,62 @@ func NewDefaultParameters() *Parameters {
 		GetQueryTimeout:    DefaultGetQueryTimeout,
 		SearchQueryTimeout: DefaultSearchQueryTimeout,
 	}
+}
+
+// EntitySim contains an *api.Entity and its Similarities to the query for a number of different
+// Searches
+type EntitySim struct {
+	E                  *api.Entity
+	Searches           []string
+	Similarities       []float64
+	SimilaritySuffStat float64
+}
+
+func NewEntitySim(e *api.Entity) *EntitySim {
+	return &EntitySim{
+		E:            e,
+		Searches:     make([]string, 0),
+		Similarities: make([]float64, 0),
+	}
+}
+
+func (e *EntitySim) Add(search string, similarity float64) {
+	e.Searches = append(e.Searches, search)
+	e.Similarities = append(e.Similarities, similarity)
+	// L-2 suff stat is sum of squares
+	e.SimilaritySuffStat += similarity * similarity
+}
+
+func (e *EntitySim) Similarity() float64 {
+	return math.Sqrt(e.SimilaritySuffStat)
+}
+
+// EntitySims is a min-heap of entity Similarities
+type EntitySims []*EntitySim
+
+func (es EntitySims) Len() int {
+	return len(es)
+}
+
+func (es EntitySims) Less(i, j int) bool {
+	return es[i].Similarity() < es[j].Similarity()
+}
+
+func (es EntitySims) Swap(i, j int) {
+	es[i], es[j] = es[j], es[i]
+}
+func (es *EntitySims) Push(x interface{}) {
+	*es = append(*es, x.(*EntitySim))
+}
+
+func (es *EntitySims) Pop() interface{} {
+	old := *es
+	n := len(old)
+	x := old[n-1]
+	*es = old[0 : n-1]
+	return x
+}
+
+func (es EntitySims) Peak() *EntitySim {
+	return es[0]
 }

@@ -1,4 +1,4 @@
-package storage
+package postgres
 
 import (
 	"context"
@@ -9,12 +9,13 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	"github.com/elxirhealth/directory/pkg/server/storage"
+	"github.com/elxirhealth/directory/pkg/server/storage/id"
 	"github.com/elxirhealth/directory/pkg/server/storage/migrations"
-	"github.com/elxirhealth/service-base/pkg/server/storage"
+	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/mattes/migrate/source/go-bindata"
 	"github.com/stretchr/testify/assert"
 )
@@ -26,15 +27,15 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	dbURL, cleanup, err := storage.StartTestPostgres()
+	dbURL, cleanup, err := bstorage.StartTestPostgres()
 	if err != nil {
 		if err2 := cleanup(); err2 != nil {
-			log.Fatal(err2.Error())
+			log.Fatal("test postgres cleanup error: " + err2.Error())
 		}
-		log.Fatal(err.Error())
+		log.Fatal("test postgres start error: " + err.Error())
 	}
 	setUpPostgresTest = func(t *testing.T) (string, func() error) {
-		return dbURL, storage.SetUpTestPostgresDB(t, dbURL, bindata.Resource(
+		return dbURL, bstorage.SetUpTestPostgresDB(t, dbURL, bindata.Resource(
 			migrations.AssetNames(),
 			func(name string) ([]byte, error) { return migrations.Asset(name) },
 		))
@@ -52,28 +53,28 @@ func TestMain(m *testing.M) {
 
 func TestNewPostgres_err(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
-	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
-	params := NewDefaultParameters()
+	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+	params := storage.NewDefaultParameters()
 	cases := map[string]struct {
 		dbURL  string
-		idGen  ChecksumIDGenerator
-		params *Parameters
+		idGen  id.Generator
+		params *storage.Parameters
 	}{
 		"empty DB URL": {
 			idGen:  idGen,
 			params: params,
 		},
-		"wrong storage type": {
+		"wrong bstorage type": {
 			dbURL: "some DB URL",
 			idGen: idGen,
-			params: &Parameters{
-				Type: Unspecified,
+			params: &storage.Parameters{
+				Type: storage.Unspecified,
 			},
 		},
 	}
 
 	for desc, c := range cases {
-		s, err := NewPostgres(c.dbURL, c.idGen, c.params)
+		s, err := New(c.dbURL, c.idGen, c.params)
 		assert.NotNil(t, err, desc)
 		assert.Nil(t, s, desc)
 	}
@@ -87,16 +88,16 @@ func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
-	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
-	s, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
+	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+	s, err := New(dbURL, idGen, storage.NewDefaultParameters())
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
-	cases := map[entityType]struct {
+	cases := map[storage.EntityType]struct {
 		original *api.Entity
 		updated  *api.Entity
 	}{
-		patient: {
+		storage.Patient: {
 			original: api.NewPatient("", &api.Patient{
 				LastName:  "Last Name 1",
 				FirstName: "First Name 1",
@@ -109,7 +110,7 @@ func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
 			}),
 		},
 
-		office: {
+		storage.Office: {
 			original: api.NewOffice("", &api.Office{
 				Name: "Name 1",
 			}),
@@ -118,18 +119,18 @@ func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
 			}),
 		},
 	}
-	assert.Equal(t, nEntityTypes, len(cases))
+	assert.Equal(t, storage.NEntityTypes, len(cases))
 
 	for et, c := range cases {
-		assert.Equal(t, et, getEntityType(c.original), et.string())
+		assert.Equal(t, et, storage.GetEntityType(c.original), et.String())
 		assert.NotEqual(t, c.original, c.updated)
 
 		entityID, err := s.PutEntity(c.original)
-		assert.Nil(t, err, et.string())
-		assert.Equal(t, entityID, c.original.EntityId, et.string())
+		assert.Nil(t, err, et.String())
+		assert.Equal(t, entityID, c.original.EntityId, et.String())
 
 		gottenOriginal, err := s.GetEntity(entityID)
-		assert.Nil(t, err, et.string())
+		assert.Nil(t, err, et.String())
 		assert.Equal(t, c.original, gottenOriginal)
 
 		c.updated.EntityId = entityID
@@ -151,8 +152,8 @@ func TestPostgresStorer_GetEntity_err(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
-	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
-	s, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
+	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+	s, err := New(dbURL, idGen, storage.NewDefaultParameters())
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -162,10 +163,10 @@ func TestPostgresStorer_GetEntity_err(t *testing.T) {
 	assert.Nil(t, e)
 
 	// missing ID
-	missingID, err := idGen.Generate(patient.idPrefix())
+	missingID, err := idGen.Generate(storage.Patient.IDPrefix())
 	assert.Nil(t, err)
 	e, err = s.GetEntity(missingID)
-	assert.Equal(t, ErrMissingEntity, err)
+	assert.Equal(t, storage.ErrMissingEntity, err)
 	assert.Nil(t, e)
 }
 
@@ -177,8 +178,8 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
-	okIDGen := NewNaiveIDGenerator(rng, DefaultIDLength)
-	okID, err := okIDGen.Generate(patient.idPrefix())
+	okIDGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+	okID, err := okIDGen.Generate(storage.Patient.IDPrefix())
 	assert.Nil(t, err)
 	okEntity := api.NewTestPatient(0, false)
 
@@ -213,14 +214,14 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	}
 
 	// two puts with same gen'd ID
-	s, err := NewPostgres(dbURL, &fixedIDGen{generateID: okID}, NewDefaultParameters())
+	s, err := New(dbURL, &fixedIDGen{generateID: okID}, storage.NewDefaultParameters())
 	assert.Nil(t, err)
 	okEntity.EntityId = ""
 	_, err = s.PutEntity(okEntity)
 	assert.Nil(t, err)
 	okEntity.EntityId = ""
 	_, err = s.PutEntity(okEntity)
-	assert.Equal(t, ErrDupGenEntityID, err)
+	assert.Equal(t, storage.ErrDupGenEntityID, err)
 }
 
 func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
@@ -231,8 +232,8 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
-	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
-	s, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
+	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+	s, err := New(dbURL, idGen, storage.NewDefaultParameters())
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -263,7 +264,7 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	// check that first result is the office with the name that matches the query
 	f, ok := found[0].TypeAttributes.(*api.Entity_Office)
 	assert.True(t, ok)
-	assert.True(t, strings.Contains(f.Office.Name, query))
+	assert.True(t, strings.Contains(strings.ToUpper(f.Office.Name), strings.ToUpper(query)))
 
 	// check that second and third results are also offices
 	_, ok = found[1].TypeAttributes.(*api.Entity_Office)
@@ -279,7 +280,7 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	// check that first result is the patient with an entityID that matches the query
 	_, ok = found[0].TypeAttributes.(*api.Entity_Patient)
 	assert.True(t, ok)
-	assert.Equal(t, query, found[0].EntityId)
+	assert.Equal(t, strings.ToUpper(query), found[0].EntityId)
 }
 
 func TestPostgresStorer_SearchEntity_err(t *testing.T) {
@@ -290,9 +291,9 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
-	idGen := NewNaiveIDGenerator(rng, DefaultIDLength)
-	params := NewDefaultParameters()
-	okStorer, err := NewPostgres(dbURL, idGen, NewDefaultParameters())
+	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+	params := storage.NewDefaultParameters()
+	okStorer, err := New(dbURL, idGen, storage.NewDefaultParameters())
 	assert.Nil(t, err)
 	assert.NotNil(t, okStorer)
 
@@ -300,38 +301,38 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 	okLimit := uint(3)
 
 	cases := map[string]struct {
-		getStorer func() Storer
+		getStorer func() storage.Storer
 		query     string
 		limit     uint
 		expected  error
 	}{
 		"query too short": {
-			getStorer: func() Storer { return okStorer },
+			getStorer: func() storage.Storer { return okStorer },
 			query:     "A",
 			limit:     okLimit,
 			expected:  ErrSearchQueryTooShort,
 		},
 		"query too long": {
-			getStorer: func() Storer { return okStorer },
+			getStorer: func() storage.Storer { return okStorer },
 			query:     strings.Repeat("A", 33),
 			limit:     okLimit,
 			expected:  ErrSearchQueryTooLong,
 		},
 		"limit too small": {
-			getStorer: func() Storer { return okStorer },
+			getStorer: func() storage.Storer { return okStorer },
 			query:     okQuery,
 			limit:     0,
 			expected:  ErrSearchLimitTooSmall,
 		},
 		"limit too large": {
-			getStorer: func() Storer { return okStorer },
+			getStorer: func() storage.Storer { return okStorer },
 			query:     okQuery,
 			limit:     9,
 			expected:  ErrSearchLimitTooLarge,
 		},
 		"unexpected query error": {
-			getStorer: func() Storer {
-				s, err := NewPostgres(dbURL, idGen, params)
+			getStorer: func() storage.Storer {
+				s, err := New(dbURL, idGen, params)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
 				s.(*postgresStorer).qr = &fixedQuerier{selectQueryErr: errTest}
@@ -343,8 +344,8 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 			expected: errTest,
 		},
 		"unexpected merge error": {
-			getStorer: func() Storer {
-				s, err := NewPostgres(dbURL, idGen, params)
+			getStorer: func() storage.Storer {
+				s, err := New(dbURL, idGen, params)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
 				s.(*postgresStorer).qr = &fixedQuerier{}
@@ -358,8 +359,8 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 			expected: errTest,
 		},
 		"rows error": {
-			getStorer: func() Storer {
-				s, err := NewPostgres(dbURL, idGen, params)
+			getStorer: func() storage.Storer {
+				s, err := New(dbURL, idGen, params)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
 				s.(*postgresStorer).qr = &fixedQuerier{
@@ -375,8 +376,8 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 			expected: errTest,
 		},
 		"rows close error": {
-			getStorer: func() Storer {
-				s, err := NewPostgres(dbURL, idGen, params)
+			getStorer: func() storage.Storer {
+				s, err := New(dbURL, idGen, params)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
 				s.(*postgresStorer).qr = &fixedQuerier{
@@ -399,49 +400,6 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 		assert.Equal(t, c.expected, err, desc)
 		assert.Nil(t, result, desc)
 	}
-}
-
-func TestPreparePatientScan(t *testing.T) {
-	e1 := api.NewTestPatient(0, true)
-	p1 := e1.TypeAttributes.(*api.Entity_Patient).Patient
-
-	cols, dest, scan := prepPatientScan(0)
-	assert.Equal(t, len(cols), len(dest))
-
-	// simulate row.Scan(dest...)
-	dest[0] = &e1.EntityId
-	dest[1] = &p1.LastName
-	dest[2] = &p1.FirstName
-	dest[3] = &p1.MiddleName
-	dest[4] = &p1.Suffix
-	birthdateTime, err := time.Parse("2006-01-02", p1.Birthdate.ISO8601())
-	assert.Nil(t, err)
-	dest[5] = &birthdateTime
-
-	e2 := scan()
-	assert.Equal(t, e1, e2)
-}
-
-func TestPrepareOfficeScan(t *testing.T) {
-	e1 := &api.Entity{
-		EntityId: "some entity ID",
-		TypeAttributes: &api.Entity_Office{
-			Office: &api.Office{
-				Name: "Name 1",
-			},
-		},
-	}
-	f1 := e1.TypeAttributes.(*api.Entity_Office).Office
-
-	cols, dest, scan := prepOfficeScan(0)
-	assert.Equal(t, len(cols), len(dest))
-
-	// simulate row.Scan(dest...)
-	dest[0] = &e1.EntityId
-	dest[1] = &f1.Name
-
-	e2 := scan()
-	assert.Equal(t, e1, e2)
 }
 
 type fixedIDGen struct {
@@ -481,13 +439,13 @@ func (f *fixedQuerier) UpdateExecContext(ctx context.Context, b sq.UpdateBuilder
 
 type fixedSearchResultsMerger struct {
 	mergeErr      error
-	topEntitySims entitySims
+	topEntitySims storage.EntitySims
 }
 
-func (srm *fixedSearchResultsMerger) merge(rows rows, searchName string, et entityType) error {
+func (srm *fixedSearchResultsMerger) merge(rows rows, searchName string, et storage.EntityType) error {
 	return srm.mergeErr
 }
 
-func (srm *fixedSearchResultsMerger) top(n uint) entitySims {
+func (srm *fixedSearchResultsMerger) top(n uint) storage.EntitySims {
 	return srm.topEntitySims
 }

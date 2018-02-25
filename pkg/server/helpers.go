@@ -4,6 +4,8 @@ import (
 	"errors"
 
 	"github.com/elxirhealth/directory/pkg/server/storage"
+	"github.com/elxirhealth/directory/pkg/server/storage/id"
+	pgstorage "github.com/elxirhealth/directory/pkg/server/storage/postgres"
 )
 
 var (
@@ -12,10 +14,10 @@ var (
 )
 
 func getStorer(config *Config) (storage.Storer, error) {
-	idGen := storage.NewDefaultIDGenerator()
+	idGen := id.NewDefaultGenerator()
 	switch config.Storage.Type {
 	case storage.Postgres:
-		return storage.NewPostgres(config.DBUrl, idGen, config.Storage)
+		return pgstorage.New(config.DBUrl, idGen, config.Storage)
 	default:
 		return nil, ErrInvalidStorageType
 	}

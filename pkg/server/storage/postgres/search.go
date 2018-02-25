@@ -1,49 +1,45 @@
-package storage
+package postgres
 
 import (
 	"container/heap"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"sync"
 
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	"github.com/elxirhealth/directory/pkg/server/storage"
 )
 
 var searchers = []searcher{
 	&btreeSearcher{
 		searcherName: "PatientEntityID",
-		et:           patient,
+		et:           storage.Patient,
 		indexedValue: entityIDCol,
 	},
 	&trigramSearcher{
 		searcherName: "PatientName",
-		et:           patient,
-		indexedValue: "(" + strings.Join([]string{
-			nonEmptyUpper(lastNameCol),
-			nonEmptyUpper(firstNameCol),
-		}, " || ' ' || ") + ")",
+		et:           storage.Patient,
+		indexedValue: nonEmptyUpper(lastNameCol, firstNameCol),
 	},
 
 	&btreeSearcher{
 		searcherName: "OfficeEntityID",
-		et:           office,
+		et:           storage.Office,
 		indexedValue: entityIDCol,
 	},
 	&trigramSearcher{
 		searcherName: "OfficeName",
-		et:           office,
+		et:           storage.Office,
 		indexedValue: nonEmptyUpper(nameCol),
 	},
 }
 
-func nonEmptyUpper(colName string) string {
-	return fmt.Sprintf("COALESCE(UPPER(%s), '')", colName)
+func nonEmptyUpper(cols ...string) string {
+	return "(" + strings.Join(cols, " || ' ' || ") + ")"
 }
 
 type searcher interface {
-	entityType() entityType
+	entityType() storage.EntityType
 	name() string
 	predicate() string
 	similarity() string
@@ -51,13 +47,13 @@ type searcher interface {
 }
 
 type btreeSearcher struct {
-	et            entityType
+	et            storage.EntityType
 	searcherName  string
 	indexedValue  string
 	caseSensitive bool
 }
 
-func (ps *btreeSearcher) entityType() entityType {
+func (ps *btreeSearcher) entityType() storage.EntityType {
 	return ps.et
 }
 
@@ -84,13 +80,13 @@ func (ps *btreeSearcher) preprocQuery(raw string) string {
 }
 
 type trigramSearcher struct {
-	et            entityType
+	et            storage.EntityType
 	searcherName  string
 	indexedValue  string
 	caseSensitive bool
 }
 
-func (ts *trigramSearcher) entityType() entityType {
+func (ts *trigramSearcher) entityType() storage.EntityType {
 	return ts.et
 }
 
@@ -113,22 +109,22 @@ func (ts *trigramSearcher) preprocQuery(raw string) string {
 }
 
 type searchResultMerger interface {
-	merge(rows rows, searchName string, et entityType) error
-	top(n uint) entitySims
+	merge(rows rows, searchName string, et storage.EntityType) error
+	top(n uint) storage.EntitySims
 }
 
 type searchResultMergerImpl struct {
-	sims map[string]*entitySim
+	sims map[string]*storage.EntitySim
 	mu   sync.Mutex
 }
 
 func newSearchResultMerger() searchResultMerger {
 	return &searchResultMergerImpl{
-		sims: make(map[string]*entitySim),
+		sims: make(map[string]*storage.EntitySim),
 	}
 }
 
-func (srm *searchResultMergerImpl) merge(rs rows, searchName string, et entityType) error {
+func (srm *searchResultMergerImpl) merge(rs rows, searchName string, et storage.EntityType) error {
 	defer rs.Close()
 	for rs.Next() {
 
@@ -143,20 +139,20 @@ func (srm *searchResultMergerImpl) merge(rs rows, searchName string, et entityTy
 		e := createEntity()
 		srm.mu.Lock()
 		if _, in := srm.sims[e.EntityId]; !in {
-			srm.sims[e.EntityId] = newEntitySim(e)
+			srm.sims[e.EntityId] = storage.NewEntitySim(e)
 		}
-		srm.sims[e.EntityId].add(searchName, simDest)
+		srm.sims[e.EntityId].Add(searchName, simDest)
 		srm.mu.Unlock()
 	}
 	return nil
 }
 
-func (srm *searchResultMergerImpl) top(n uint) entitySims {
-	ess := &entitySims{}
+func (srm *searchResultMergerImpl) top(n uint) storage.EntitySims {
+	ess := &storage.EntitySims{}
 	heap.Init(ess)
 	srm.mu.Lock()
 	for _, es := range srm.sims {
-		if ess.Len() < int(n) || es.similarity() > ess.Peak().similarity() {
+		if ess.Len() < int(n) || es.Similarity() > ess.Peak().Similarity() {
 			heap.Push(ess, es)
 		}
 		if ess.Len() > int(n) {
@@ -166,62 +162,4 @@ func (srm *searchResultMergerImpl) top(n uint) entitySims {
 	srm.mu.Unlock()
 	sort.Sort(sort.Reverse(ess)) // sort descending
 	return (*ess)[:n]
-}
-
-// entitySim contains an *api.Entity and its similarities to the query for a number of different
-// searches
-type entitySim struct {
-	e                  *api.Entity
-	searches           []string
-	similarities       []float64
-	similaritySuffStat float64
-}
-
-func newEntitySim(e *api.Entity) *entitySim {
-	return &entitySim{
-		e:            e,
-		searches:     make([]string, 0),
-		similarities: make([]float64, 0),
-	}
-}
-
-func (e *entitySim) add(search string, similarity float64) {
-	e.searches = append(e.searches, search)
-	e.similarities = append(e.similarities, similarity)
-	// L-2 suff stat is sum of squares
-	e.similaritySuffStat += similarity * similarity
-}
-
-func (e *entitySim) similarity() float64 {
-	return math.Sqrt(e.similaritySuffStat)
-}
-
-// entitySims is a min-heap of entity similarities
-type entitySims []*entitySim
-
-func (es entitySims) Len() int {
-	return len(es)
-}
-
-func (es entitySims) Less(i, j int) bool {
-	return es[i].similarity() < es[j].similarity()
-}
-
-func (es entitySims) Swap(i, j int) {
-	es[i], es[j] = es[j], es[i]
-}
-func (es *entitySims) Push(x interface{}) {
-	*es = append(*es, x.(*entitySim))
-}
-
-func (es *entitySims) Pop() interface{} {
-	old := *es
-	n := len(old)
-	x := old[n-1]
-	*es = old[0 : n-1]
-	return x
-}
-
-func (es entitySims) Peak() *entitySim {
-	return es[0]
 }

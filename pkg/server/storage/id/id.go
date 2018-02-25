@@ -1,4 +1,4 @@
-package storage
+package id
 
 import (
 	crand "crypto/rand"
@@ -25,50 +25,51 @@ var (
 )
 
 const (
-	// DefaultIDLength defines the default length of a base-32 ID, including the prefix and
+	// DefaultLength defines the default length of a base-32 ID, including the prefix and
 	// checksum characters.
-	DefaultIDLength = 9
+	DefaultLength = 9
 
 	invalidCodePoint = 0xFF
 )
 
-// ChecksumIDChecker checks that an ID has a valid Luhn checksum.
-type ChecksumIDChecker interface {
+// Checker verifies that an ID is valid.
+type Checker interface {
 	// Check confirms that the right-most character properly checksums the rest of the id,
 	// returning a non-nil error if it does not.
 	Check(id string) error
 }
 
-// ChecksumIDGenerator creates base-32 IDs with a Luhn checksum character at the end.
-type ChecksumIDGenerator interface {
-	ChecksumIDChecker
+// Generator checks and creates IDs.
+type Generator interface {
+	Checker
 
 	// Generate returns an ID with the given (usually 1-character) prefix.
 	Generate(prefix string) (string, error)
 }
 
-type naiveIDGenerator struct {
+// luhnGenerator creates base-32 IDs with a Luhn checksum character at the end.
+type luhnGenerator struct {
 	entropy io.Reader
 	length  int
 }
 
-// NewNaiveIDGenerator returns an ChecksumIDGenerator that produces IDs of the given length from
+// NewNaiveLuhnGenerator returns an Generator that produces IDs of the given length from
 // the given source of entropy. It is naive in that it does not check whether the generated ID
 // exists or not.
-func NewNaiveIDGenerator(entropy io.Reader, length int) ChecksumIDGenerator {
-	return &naiveIDGenerator{
+func NewNaiveLuhnGenerator(entropy io.Reader, length int) Generator {
+	return &luhnGenerator{
 		entropy: entropy,
 		length:  length,
 	}
 }
 
-// NewDefaultIDGenerator returns a *naiveIDGenerator using the local machine's source of entropy
+// NewDefaultIDGenerator returns a *luhnGenerator using the local machine's source of entropy
 // (via crypto/rand) and the default ID length.
-func NewDefaultIDGenerator() ChecksumIDGenerator {
-	return NewNaiveIDGenerator(crand.Reader, DefaultIDLength)
+func NewDefaultGenerator() Generator {
+	return NewNaiveLuhnGenerator(crand.Reader, DefaultLength)
 }
 
-func (g *naiveIDGenerator) Generate(prefix string) (string, error) {
+func (g *luhnGenerator) Generate(prefix string) (string, error) {
 	if len(prefix) > 1 {
 		return "", ErrPrefixTooLong
 	}
@@ -84,7 +85,7 @@ func (g *naiveIDGenerator) Generate(prefix string) (string, error) {
 	return raw + checksum, nil
 }
 
-func (g *naiveIDGenerator) Check(id string) error {
+func (g *luhnGenerator) Check(id string) error {
 	if ok := checkChecksum(id, base32Encoder, base32Decoder); !ok {
 		return ErrIncorrectChecksum
 	}

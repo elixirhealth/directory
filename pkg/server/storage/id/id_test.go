@@ -1,4 +1,4 @@
-package storage
+package id
 
 import (
 	"math/rand"
@@ -15,7 +15,7 @@ const (
 func TestNaiveIDGenerator_Generate_ok(t *testing.T) {
 	prefix := "P"
 	rng := rand.New(rand.NewSource(0))
-	g := NewNaiveIDGenerator(rng, idLength)
+	g := NewNaiveLuhnGenerator(rng, idLength)
 	id, err := g.Generate(prefix)
 	assert.Nil(t, err)
 	assert.Equal(t, idLength, len(id))
@@ -26,7 +26,7 @@ func TestNaiveIDGenerator_Generate_ok(t *testing.T) {
 func TestNaiveIDGenerator_Generate_err(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
 	prefix := "P"
-	g := NewNaiveIDGenerator(rng, idLength)
+	g := NewNaiveLuhnGenerator(rng, idLength)
 
 	id, err := g.Generate("pp")
 	assert.Equal(t, ErrPrefixTooLong, err)
@@ -36,7 +36,7 @@ func TestNaiveIDGenerator_Generate_err(t *testing.T) {
 	assert.Equal(t, ErrInvalidPrefix, err)
 	assert.Empty(t, id)
 
-	g = &naiveIDGenerator{
+	g = &luhnGenerator{
 		entropy: &fixedReader{err: errors.New("some Read error")},
 		length:  idLength,
 	}
@@ -47,7 +47,7 @@ func TestNaiveIDGenerator_Generate_err(t *testing.T) {
 
 func TestNaiveIDGenerator_Check(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
-	g := NewNaiveIDGenerator(rng, idLength)
+	g := NewNaiveLuhnGenerator(rng, idLength)
 
 	err := g.Check("PAGKP3QXS")
 	assert.Nil(t, err)
