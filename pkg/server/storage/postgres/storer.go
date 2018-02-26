@@ -178,10 +178,11 @@ func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) 
 				ps.params.SearchQueryTimeout)
 			defer cancel()
 			rows, err := ps.qr.SelectQueryContext(ctx, q)
-			if err = ps.processSearchQuery(srm, rows, err, s2); err != nil {
+			n, err := ps.processSearchQuery(srm, rows, err, s2)
+			if err != nil {
 				errs <- err
 			}
-			ps.logger.Debug("searcher finished", logSearcherFinished(s2, query)...)
+			ps.logger.Debug("searcher finished", logSearcherFinished(s2, query, n)...)
 
 		}(s1, wg1)
 	}
@@ -193,34 +194,35 @@ func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) 
 	}
 
 	// return just the entities, without their granular or norm'd similarity scores
-	es := make([]*api.Entity, limit)
+	es := make([]*api.Entity, 0, limit)
 	ess := srm.top(limit)
 	ps.logger.Debug("ranked search results", logSearchRanked(query, limit, ess)...)
-	for i, eSim := range ess {
-		es[i] = eSim.E
+	for _, eSim := range ess {
+		es = append(es, eSim.E)
 	}
 	return es, nil
 }
 
 func (ps *storer) processSearchQuery(
 	srm searchResultMerger, rows queryRows, err error, s searcher,
-) error {
+) (int, error) {
 	if err != nil {
 		if err != context.DeadlineExceeded && err != sql.ErrNoRows {
-			return err
+			return 0, err
 		}
-		return nil
+		return 0, nil
 	}
-	if err := srm.merge(rows, s.name(), s.entityType()); err != nil {
-		return err
+	n, err := srm.merge(rows, s.name(), s.entityType())
+	if err != nil {
+		return 0, err
 	}
 	if err := rows.Err(); err != nil {
-		return err
+		return n, err
 	}
 	if err := rows.Close(); err != nil {
-		return err
+		return n, err
 	}
-	return nil
+	return n, nil
 }
 
 func (ps *storer) Close() error {

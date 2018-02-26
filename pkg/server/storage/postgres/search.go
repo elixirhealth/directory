@@ -109,7 +109,7 @@ func (ts *trigramSearcher) preprocQuery(raw string) string {
 }
 
 type searchResultMerger interface {
-	merge(rows queryRows, searchName string, et storage.EntityType) error
+	merge(rows queryRows, searchName string, et storage.EntityType) (int, error)
 	top(n uint) storage.EntitySims
 }
 
@@ -126,7 +126,8 @@ func newSearchResultMerger() searchResultMerger {
 
 func (srm *searchResultMergerImpl) merge(
 	rs queryRows, searchName string, et storage.EntityType,
-) error {
+) (int, error) {
+	n := 0
 	for rs.Next() {
 
 		// prepare the destination slice for the entity with an extra slot for it's
@@ -135,7 +136,7 @@ func (srm *searchResultMergerImpl) merge(
 		var simDest float32
 		dest := append(entityDest, &simDest)
 		if err := rs.Scan(dest...); err != nil {
-			return err
+			return 0, err
 		}
 		e := createEntity()
 		srm.mu.Lock()
@@ -143,9 +144,10 @@ func (srm *searchResultMergerImpl) merge(
 			srm.sims[e.EntityId] = storage.NewEntitySim(e)
 		}
 		srm.sims[e.EntityId].Add(searchName, simDest)
+		n++
 		srm.mu.Unlock()
 	}
-	return rs.Close()
+	return n, rs.Close()
 }
 
 func (srm *searchResultMergerImpl) top(n uint) storage.EntitySims {

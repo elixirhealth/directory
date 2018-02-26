@@ -1,4 +1,3 @@
-
 CREATE EXTENSION pg_trgm;
 
 CREATE INDEX patient_name

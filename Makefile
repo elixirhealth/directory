@@ -7,6 +7,7 @@ GIT_DIFF_SUBDIRS=$(shell git diff develop..HEAD --name-only | grep -e '\.go$$' |
 GIT_STATUS_PKG_SUBDIRS=$(shell echo $(PKG_SUBDIRS) $(GIT_STATUS_SUBDIRS) | tr " " "\n" | sort | uniq -d)
 GIT_DIFF_PKG_SUBDIRS=$(shell echo $(PKG_SUBDIRS) $(GIT_DIFF_SUBDIRS) | tr " " "\n" | sort | uniq -d)
 SERVICE_BASE_PKG=github.com/elxirhealth/service-base
+MIGRATIONS_PKG=pkg/server/storage/postgres/migrations
 
 .PHONY: bench build
 
@@ -60,8 +61,8 @@ lint-diff:
 
 migrations:
 	@echo "--> Generating Postgres migrations from files"
-	@go-bindata -o pkg/server/storage/migrations/migrations.go -pkg migrations -prefix 'pkg/server/storage/migrations/sql/' pkg/server/storage/migrations/sql
-	@goimports -w pkg/server/storage/migrations/migrations.go
+	@go-bindata -o $(MIGRATIONS_PKG)/migrations.go -pkg migrations -prefix '$(MIGRATIONS_PKG)/sql/' $(MIGRATIONS_PKG)/sql
+	@goimports -w $(MIGRATIONS_PKG)/migrations.go
 
 proto:
 	@echo "--> Running protoc"

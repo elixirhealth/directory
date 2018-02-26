@@ -286,7 +286,7 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	query = strings.ToLower(entityIDs[1][:4]) // 2nd patient's first 4 chars of entityID diff case
 	found, err = s.SearchEntity(query, limit)
 	assert.Nil(t, err)
-	assert.Equal(t, limit, uint(len(found)))
+	assert.Equal(t, 1, len(found))
 
 	// check that first result is the patient with an entityID that matches the query
 	_, ok = found[0].TypeAttributes.(*api.Entity_Patient)
@@ -464,14 +464,15 @@ func (f *fixedQuerier) UpdateExecContext(
 }
 
 type fixedSearchResultsMerger struct {
+	mergeN        int
 	mergeErr      error
 	topEntitySims storage.EntitySims
 }
 
 func (srm *fixedSearchResultsMerger) merge(
 	rows queryRows, searchName string, et storage.EntityType,
-) error {
-	return srm.mergeErr
+) (int, error) {
+	return srm.mergeN, srm.mergeErr
 }
 
 func (srm *fixedSearchResultsMerger) top(n uint) storage.EntitySims {

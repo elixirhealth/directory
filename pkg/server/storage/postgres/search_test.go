@@ -15,10 +15,14 @@ func TestSearchResultMergerImpl_merge(t *testing.T) {
 	rows2 := &fixedOfficeRows{ess: testEntitySims(0.2, search2, n)}
 
 	srm := newSearchResultMerger()
-	err := srm.merge(rows1, search1, storage.Office)
+	nMerged, err := srm.merge(rows1, search1, storage.Office)
 	assert.Nil(t, err)
-	err = srm.merge(rows2, search2, storage.Office)
+	assert.Equal(t, n, nMerged)
+
+	nMerged, err = srm.merge(rows2, search2, storage.Office)
 	assert.Nil(t, err)
+	assert.Equal(t, n, nMerged)
+
 	assert.Equal(t, n, len(srm.(*searchResultMergerImpl).sims))
 	for _, v := range srm.(*searchResultMergerImpl).sims {
 		assert.Equal(t, 2, len(v.Similarities))

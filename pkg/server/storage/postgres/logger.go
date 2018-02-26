@@ -20,6 +20,7 @@ const (
 	logSearcher   = "searcher"
 	logLimit      = "limit"
 	logResults    = "results"
+	logNFound     = "n_found"
 )
 
 func logGetSelect(q sq.SelectBuilder, et storage.EntityType, entityID string) []zapcore.Field {
@@ -45,11 +46,12 @@ func logSearchSelect(q sq.SelectBuilder, s searcher, query string) []zapcore.Fie
 	}
 }
 
-func logSearcherFinished(s searcher, query string) []zapcore.Field {
+func logSearcherFinished(s searcher, query string, nFound int) []zapcore.Field {
 	return []zapcore.Field{
 		zap.String(logQuery, query),
 		zap.String(logSearcher, s.name()),
 		zap.Stringer(logEntityType, s.entityType()),
+		zap.Int(logNFound, nFound),
 	}
 }
 
