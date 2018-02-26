@@ -7,14 +7,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEntityType_string(t *testing.T) {
+func TestEntityType_String(t *testing.T) {
 	for i := 0; i < NEntityTypes; i++ {
 		et := EntityType(i)
 		assert.NotEmpty(t, et.String())
 	}
 }
 
-func TestEntityType_idPrefix(t *testing.T) {
+func TestEntityType_IDPrefix(t *testing.T) {
 	for i := 0; i < NEntityTypes; i++ {
 		et := EntityType(i)
 		assert.NotEmpty(t, et.IDPrefix())

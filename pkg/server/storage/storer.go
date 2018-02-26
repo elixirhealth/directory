@@ -15,6 +15,8 @@ var (
 	// ErrDupGenEntityID indicates when a newly generated entity ID already exists.
 	ErrDupGenEntityID = errors.New("duplicate entity ID generated")
 
+	// ErrUnknownEntityType indicates when the entity type is unknown (usually used in default
+	// case of switch statement).
 	ErrUnknownEntityType = errors.New("unknown entity type")
 )
 
@@ -35,10 +37,12 @@ var (
 	// a Storer's PutEntity method.
 	DefaultPutQueryTimeout = 2 * time.Second
 
-	// DefaultGetQueryTimeout is the default timeout for DB INSERT or UPDATE queries used to in
+	// DefaultGetQueryTimeout is the default timeout for DB SELECT queries used to in
 	// a Storer's GetEntity method.
 	DefaultGetQueryTimeout = 2 * time.Second
 
+	// DefaultSearchQueryTimeout is the default timeout for DB SELECT queries used to in
+	// a Storer's SearchEntity method.
 	DefaultSearchQueryTimeout = 2 * time.Second
 )
 
@@ -52,6 +56,8 @@ type Storer interface {
 	// GetEntity retrives the entity with the given entityID.
 	GetEntity(entityID string) (*api.Entity, error)
 
+	// SearchEntity finds {{ limiit }} entities matching the given query, ordered most similar
+	// to least.
 	SearchEntity(query string, limit uint) ([]*api.Entity, error)
 
 	// Close handles any necessary cleanup.
@@ -92,48 +98,54 @@ func NewDefaultParameters() *Parameters {
 // Searches
 type EntitySim struct {
 	E                  *api.Entity
-	Searches           []string
-	Similarities       []float64
-	SimilaritySuffStat float64
+	Similarities       map[string]float64
+	similaritySuffStat float64
 }
 
+// NewEntitySim creates a new *EntitySim for the given *Entity.
 func NewEntitySim(e *api.Entity) *EntitySim {
 	return &EntitySim{
 		E:            e,
-		Searches:     make([]string, 0),
-		Similarities: make([]float64, 0),
+		Similarities: make(map[string]float64),
 	}
 }
 
+// Add adds a new [0, 1] similarity score for the given search name.
 func (e *EntitySim) Add(search string, similarity float64) {
-	e.Searches = append(e.Searches, search)
-	e.Similarities = append(e.Similarities, similarity)
+	e.Similarities[search] = similarity
 	// L-2 suff stat is sum of squares
-	e.SimilaritySuffStat += similarity * similarity
+	e.similaritySuffStat += similarity * similarity
 }
 
+// Similarity returns the combined similarity over all the searches.
 func (e *EntitySim) Similarity() float64 {
-	return math.Sqrt(e.SimilaritySuffStat)
+	return math.Sqrt(e.similaritySuffStat)
 }
 
 // EntitySims is a min-heap of entity Similarities
 type EntitySims []*EntitySim
 
+// Len returns the number of entity sims.
 func (es EntitySims) Len() int {
 	return len(es)
 }
 
+// Less returns whether entity sim i has a similarity less than that of j.
 func (es EntitySims) Less(i, j int) bool {
 	return es[i].Similarity() < es[j].Similarity()
 }
 
+// Swap swaps the entity sim i and j.
 func (es EntitySims) Swap(i, j int) {
 	es[i], es[j] = es[j], es[i]
 }
+
+// Push adds the given EntitySim to the heap.
 func (es *EntitySims) Push(x interface{}) {
 	*es = append(*es, x.(*EntitySim))
 }
 
+// Pop removes the EntitySim from the root of the heap.
 func (es *EntitySims) Pop() interface{} {
 	old := *es
 	n := len(old)
@@ -142,6 +154,7 @@ func (es *EntitySims) Pop() interface{} {
 	return x
 }
 
+// Peak returns the EntitySim from the root of the heap.
 func (es EntitySims) Peak() *EntitySim {
 	return es[0]
 }

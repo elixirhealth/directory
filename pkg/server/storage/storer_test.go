@@ -38,7 +38,6 @@ func TestEntitySim(t *testing.T) {
 	es := NewEntitySim(&api.Entity{})
 	es.Add("Search1", 0.2)
 	es.Add("Search2", 0.3)
-	assert.Equal(t, []string{"Search1", "Search2"}, es.Searches)
-	assert.Equal(t, []float64{0.2, 0.3}, es.Similarities)
+	assert.Equal(t, map[string]float64{"Search1": 0.2, "Search2": 0.3}, es.Similarities)
 	assert.Equal(t, math.Sqrt(0.2*0.2+0.3*0.3), es.Similarity())
 }

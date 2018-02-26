@@ -63,7 +63,7 @@ func NewNaiveLuhnGenerator(entropy io.Reader, length int) Generator {
 	}
 }
 
-// NewDefaultIDGenerator returns a *luhnGenerator using the local machine's source of entropy
+// NewDefaultGenerator returns a *luhnGenerator using the local machine's source of entropy
 // (via crypto/rand) and the default ID length.
 func NewDefaultGenerator() Generator {
 	return NewNaiveLuhnGenerator(crand.Reader, DefaultLength)

@@ -184,23 +184,23 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	okEntity := api.NewTestPatient(0, false)
 
 	cases := map[string]struct {
-		s *postgresStorer
+		s *storer
 		e *api.Entity
 	}{
 		"bad entity ID": {
-			s: &postgresStorer{
+			s: &storer{
 				idGen: okIDGen,
 			},
 			e: &api.Entity{EntityId: "bad ID"},
 		},
 		"bad entity": {
-			s: &postgresStorer{
+			s: &storer{
 				idGen: okIDGen,
 			},
 			e: &api.Entity{},
 		},
 		"ID gen error": {
-			s: &postgresStorer{
+			s: &storer{
 				idGen: &fixedIDGen{generateErr: errors.New("some Generate error")},
 			},
 			e: okEntity,
@@ -249,9 +249,9 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	}
 	entityIDs := make([]string, len(es))
 	for i, e := range es {
-		entityID, err := s.PutEntity(e)
+		entityID, err2 := s.PutEntity(e)
+		assert.Nil(t, err2)
 		entityIDs[i] = entityID
-		assert.Nil(t, err)
 	}
 
 	limit := uint(3)
@@ -335,7 +335,7 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 				s, err := New(dbURL, idGen, params)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
-				s.(*postgresStorer).qr = &fixedQuerier{selectQueryErr: errTest}
+				s.(*storer).qr = &fixedQuerier{selectQueryErr: errTest}
 				return s
 
 			},
@@ -348,8 +348,8 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 				s, err := New(dbURL, idGen, params)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
-				s.(*postgresStorer).qr = &fixedQuerier{}
-				s.(*postgresStorer).srm = &fixedSearchResultsMerger{
+				s.(*storer).qr = &fixedQuerier{}
+				s.(*storer).srm = &fixedSearchResultsMerger{
 					mergeErr: errTest,
 				}
 				return s
@@ -358,34 +358,34 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 			limit:    okLimit,
 			expected: errTest,
 		},
-		"rows error": {
+		"queryRows error": {
 			getStorer: func() storage.Storer {
 				s, err := New(dbURL, idGen, params)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
-				s.(*postgresStorer).qr = &fixedQuerier{
+				s.(*storer).qr = &fixedQuerier{
 					selectQueryRows: &fixedOfficeRows{
 						errErr: errTest,
 					},
 				}
-				s.(*postgresStorer).srm = &fixedSearchResultsMerger{}
+				s.(*storer).srm = &fixedSearchResultsMerger{}
 				return s
 			},
 			query:    okQuery,
 			limit:    okLimit,
 			expected: errTest,
 		},
-		"rows close error": {
+		"queryRows close error": {
 			getStorer: func() storage.Storer {
 				s, err := New(dbURL, idGen, params)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
-				s.(*postgresStorer).qr = &fixedQuerier{
+				s.(*storer).qr = &fixedQuerier{
 					selectQueryRows: &fixedOfficeRows{
 						closeErr: errTest,
 					},
 				}
-				s.(*postgresStorer).srm = &fixedSearchResultsMerger{}
+				s.(*storer).srm = &fixedSearchResultsMerger{}
 				return s
 			},
 			query:    okQuery,
@@ -417,23 +417,31 @@ func (f *fixedIDGen) Generate(prefix string) (string, error) {
 }
 
 type fixedQuerier struct {
-	selectQueryRows rows
+	selectQueryRows queryRows
 	selectQueryErr  error
 }
 
-func (f *fixedQuerier) SelectQueryContext(ctx context.Context, b sq.SelectBuilder) (rows, error) {
+func (f *fixedQuerier) SelectQueryContext(
+	ctx context.Context, b sq.SelectBuilder,
+) (queryRows, error) {
 	return f.selectQueryRows, f.selectQueryErr
 }
 
-func (f *fixedQuerier) SelectQueryRowContext(ctx context.Context, b sq.SelectBuilder) sq.RowScanner {
+func (f *fixedQuerier) SelectQueryRowContext(
+	ctx context.Context, b sq.SelectBuilder,
+) sq.RowScanner {
 	panic("implement me")
 }
 
-func (f *fixedQuerier) InsertExecContext(ctx context.Context, b sq.InsertBuilder) (sql.Result, error) {
+func (f *fixedQuerier) InsertExecContext(
+	ctx context.Context, b sq.InsertBuilder,
+) (sql.Result, error) {
 	panic("implement me")
 }
 
-func (f *fixedQuerier) UpdateExecContext(ctx context.Context, b sq.UpdateBuilder) (sql.Result, error) {
+func (f *fixedQuerier) UpdateExecContext(
+	ctx context.Context, b sq.UpdateBuilder,
+) (sql.Result, error) {
 	panic("implement me")
 }
 
@@ -442,7 +450,9 @@ type fixedSearchResultsMerger struct {
 	topEntitySims storage.EntitySims
 }
 
-func (srm *fixedSearchResultsMerger) merge(rows rows, searchName string, et storage.EntityType) error {
+func (srm *fixedSearchResultsMerger) merge(
+	rows queryRows, searchName string, et storage.EntityType,
+) error {
 	return srm.mergeErr
 }
 

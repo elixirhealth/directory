@@ -56,8 +56,6 @@ func prepEntityScan(
 	default:
 		panic(storage.ErrUnknownEntityType)
 	}
-
-	return cols, dest, create
 }
 
 func prepPatientScan(nExtraDests int) ([]string, []interface{}, func() *api.Entity) {

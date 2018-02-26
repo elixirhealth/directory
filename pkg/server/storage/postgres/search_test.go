@@ -22,7 +22,6 @@ func TestSearchResultMergerImpl_merge(t *testing.T) {
 	assert.Equal(t, n, len(srm.(*searchResultMergerImpl).sims))
 	for _, v := range srm.(*searchResultMergerImpl).sims {
 		assert.Equal(t, 2, len(v.Similarities))
-		assert.Equal(t, 2, len(v.Searches))
 	}
 }
 
@@ -30,12 +29,9 @@ func testEntitySims(simMult float64, search string, n int) storage.EntitySims {
 	ess := make(storage.EntitySims, n)
 	for i := range ess {
 		sim := simMult * float64(i)
-		ess[i] = &storage.EntitySim{
-			Similarities:       []float64{sim},
-			Searches:           []string{search},
-			SimilaritySuffStat: sim * sim,
-			E:                  api.NewTestOffice(i, true),
-		}
+		es := storage.NewEntitySim(api.NewTestOffice(i, true))
+		es.Add(search, sim)
+		ess[i] = es
 
 	}
 	return ess

@@ -26,12 +26,21 @@ const (
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
+	// ErrSearchQueryTooShort identifies when a search query string is shorter than the minimum
+	// length.
 	ErrSearchQueryTooShort = fmt.Errorf("search query shorter than min length %d",
 		minSearchQueryLen)
+
+	// ErrSearchQueryTooLong identifies when a search query string is longer than the maximum
+	// length.
 	ErrSearchQueryTooLong = fmt.Errorf("search query longer than max length %d",
 		maxSearchQueryLen)
+
+	// ErrSearchLimitTooSmall identifies when a search limit is smaller than the minimum value.
 	ErrSearchLimitTooSmall = fmt.Errorf("search limit smaller than min length %d",
 		minSearchLimit)
+
+	// ErrSearchLimitTooLarge identifies when a search limit is alarger than the maximum value.
 	ErrSearchLimitTooLarge = fmt.Errorf("search limit larger than max length %d",
 		maxSearchLimit)
 
@@ -39,7 +48,7 @@ var (
 	errUnexpectedStorageType = errors.New("unexpected storage type")
 )
 
-type postgresStorer struct {
+type storer struct {
 	params  *storage.Parameters
 	idGen   id.Generator
 	db      *sql.DB
@@ -59,7 +68,7 @@ func New(dbURL string, idGen id.Generator, params *storage.Parameters) (storage.
 	}
 	db, err := sql.Open("postgres", dbURL)
 	errors2.MaybePanic(err)
-	return &postgresStorer{
+	return &storer{
 		params:  params,
 		idGen:   idGen,
 		db:      db,
@@ -69,7 +78,7 @@ func New(dbURL string, idGen id.Generator, params *storage.Parameters) (storage.
 	}, nil
 }
 
-func (ps *postgresStorer) PutEntity(e *api.Entity) (string, error) {
+func (ps *storer) PutEntity(e *api.Entity) (string, error) {
 	if e.EntityId != "" {
 		if err := ps.idGen.Check(e.EntityId); err != nil {
 			return "", err
@@ -109,7 +118,7 @@ func (ps *postgresStorer) PutEntity(e *api.Entity) (string, error) {
 	return e.EntityId, tx.Commit()
 }
 
-func (ps *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
+func (ps *storer) GetEntity(entityID string) (*api.Entity, error) {
 	if err := ps.idGen.Check(entityID); err != nil {
 		return nil, err
 	}
@@ -130,7 +139,7 @@ func (ps *postgresStorer) GetEntity(entityID string) (*api.Entity, error) {
 	return create(), nil
 }
 
-func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
+func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
 	if err := ps.validateSearchQuery(query, limit); err != nil {
 		return nil, err
 	}
@@ -152,24 +161,10 @@ func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity,
 				ps.params.SearchQueryTimeout)
 			defer cancel()
 			rows, err := ps.qr.SelectQueryContext(ctx, q)
-			if err != nil {
-				if err != context.DeadlineExceeded && err != sql.ErrNoRows {
-					errs <- err
-				}
-				return
-			}
-			if err := ps.srm.merge(rows, s2.name(), s2.entityType()); err != nil {
+			if err = ps.processSearchQuery(rows, err, s2); err != nil {
 				errs <- err
-				return
 			}
-			if err := rows.Err(); err != nil {
-				errs <- err
-				return
-			}
-			if err := rows.Close(); err != nil {
-				errs <- err
-				return
-			}
+
 		}(s1, wg1)
 	}
 	wg1.Wait()
@@ -187,11 +182,30 @@ func (ps *postgresStorer) SearchEntity(query string, limit uint) ([]*api.Entity,
 	return es, nil
 }
 
-func (ps *postgresStorer) Close() error {
+func (ps *storer) processSearchQuery(rows queryRows, err error, s searcher) error {
+	if err != nil {
+		if err != context.DeadlineExceeded && err != sql.ErrNoRows {
+			return err
+		}
+		return nil
+	}
+	if err := ps.srm.merge(rows, s.name(), s.entityType()); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ps *storer) Close() error {
 	return ps.db.Close()
 }
 
-func (ps *postgresStorer) maybeAddEntityID(e *api.Entity) (added bool, err error) {
+func (ps *storer) maybeAddEntityID(e *api.Entity) (added bool, err error) {
 	if e.EntityId != "" {
 		return false, nil
 	}
@@ -204,7 +218,7 @@ func (ps *postgresStorer) maybeAddEntityID(e *api.Entity) (added bool, err error
 	return true, nil
 }
 
-func (ps *postgresStorer) validateSearchQuery(query string, limit uint) error {
+func (ps *storer) validateSearchQuery(query string, limit uint) error {
 	if len(query) < minSearchQueryLen {
 		return ErrSearchQueryTooShort
 	}
@@ -220,7 +234,7 @@ func (ps *postgresStorer) validateSearchQuery(query string, limit uint) error {
 	return nil
 }
 
-type rows interface {
+type queryRows interface {
 	Scan(dest ...interface{}) error
 	Next() bool
 	Close() error
@@ -228,7 +242,7 @@ type rows interface {
 }
 
 type querier interface {
-	SelectQueryContext(ctx context.Context, b sq.SelectBuilder) (rows, error)
+	SelectQueryContext(ctx context.Context, b sq.SelectBuilder) (queryRows, error)
 	SelectQueryRowContext(ctx context.Context, b sq.SelectBuilder) sq.RowScanner
 	InsertExecContext(ctx context.Context, b sq.InsertBuilder) (sql.Result, error)
 	UpdateExecContext(ctx context.Context, b sq.UpdateBuilder) (sql.Result, error)
@@ -239,7 +253,7 @@ type querierImpl struct {
 
 func (q *querierImpl) SelectQueryContext(
 	ctx context.Context, b sq.SelectBuilder,
-) (rows, error) {
+) (queryRows, error) {
 	return b.QueryContext(ctx)
 }
 

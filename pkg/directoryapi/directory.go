@@ -100,6 +100,7 @@ func (m *Date) ISO8601() string {
 	return fmt.Sprintf("%04d-%02d-%02d", m.Year, m.Month, m.Day)
 }
 
+// NewPatient returns an *Entity with the given entityID and wrapping the given *Patient.
 func NewPatient(entityID string, p *Patient) *Entity {
 	return &Entity{
 		EntityId: entityID,
@@ -109,6 +110,7 @@ func NewPatient(entityID string, p *Patient) *Entity {
 	}
 }
 
+// NewOffice returns an *Entity with the given entityID and wrapping the given *Office.
 func NewOffice(entityID string, f *Office) *Entity {
 	return &Entity{
 		EntityId: entityID,
@@ -118,6 +120,7 @@ func NewOffice(entityID string, f *Office) *Entity {
 	}
 }
 
+// NewTestPatient returns a new patient entity suitable for use in tests.
 func NewTestPatient(i int, addID bool) *Entity {
 	entityID := ""
 	if addID {
@@ -131,6 +134,7 @@ func NewTestPatient(i int, addID bool) *Entity {
 	})
 }
 
+// NewTestOffice returns a new office entity suitable for use in tests.
 func NewTestOffice(i int, addID bool) *Entity {
 	entityID := ""
 	if addID {
