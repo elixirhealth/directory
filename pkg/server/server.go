@@ -62,3 +62,25 @@ func (d *Directory) GetEntity(
 	d.Logger.Info("got entity", logGetEntityRp(rp)...)
 	return rp, nil
 }
+
+// SearchEntity finds existing entities matching a query.
+func (d *Directory) SearchEntity(
+	ctx context.Context, rq *api.SearchEntityRequest,
+) (*api.SearchEntityResponse, error) {
+	d.Logger.Debug("received SearchEntity request", logSearchEntityRq(rq)...)
+	if err := api.ValidateSearchEntityRequest(rq); err != nil {
+		return nil, err
+	}
+	es, err := d.storer.SearchEntity(rq.Query, uint(rq.Limit))
+	if err != nil {
+		return nil, err
+	}
+	rp := &api.SearchEntityResponse{Entities: es}
+	if len(rp.Entities) == 0 {
+		d.Logger.Info("found no entities", logSearchEntityRp(rq, rp)...)
+	} else {
+		d.Logger.Info("found entities", logSearchEntityRp(rq, rp)...)
+	}
+	return rp, nil
+
+}

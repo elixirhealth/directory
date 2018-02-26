@@ -10,15 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var okEntity = &api.Entity{
-	TypeAttributes: &api.Entity_Patient{
-		Patient: &api.Patient{
-			LastName:  "Last Name",
-			FirstName: "First Name",
-			Birthdate: &api.Date{Year: 2006, Month: 1, Day: 2},
-		},
-	},
-}
+var okEntity = api.NewTestPatient(0, false)
 
 func TestNewDirectory_ok(t *testing.T) {
 	config := NewDefaultConfig().WithDBUrl("some DB URL")
@@ -130,6 +122,58 @@ func TestDirectory_GetEntity_err(t *testing.T) {
 
 	for desc, c := range cases {
 		rp, err := c.d.GetEntity(context.Background(), c.rq)
+		assert.NotNil(t, err, desc)
+		assert.Nil(t, rp, desc)
+	}
+}
+
+func TestDirectory_SearchEntity_ok(t *testing.T) {
+	d := &Directory{
+		BaseServer: server.NewBaseServer(server.NewDefaultBaseConfig()),
+		storer: &fixedStorer{
+			searchEntities: []*api.Entity{
+				api.NewTestPatient(0, true),
+				api.NewTestPatient(1, true),
+			},
+		},
+	}
+	rq := &api.SearchEntityRequest{
+		Query: "some query",
+		Limit: 8,
+	}
+
+	rp, err := d.SearchEntity(context.Background(), rq)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(rp.Entities))
+}
+
+func TestDirectory_SearchEntity_err(t *testing.T) {
+	baseServer := server.NewBaseServer(server.NewDefaultBaseConfig())
+	cases := map[string]struct {
+		d  *Directory
+		rq *api.SearchEntityRequest
+	}{
+		"invalid request": {
+			d: &Directory{
+				BaseServer: baseServer,
+			},
+			rq: &api.SearchEntityRequest{},
+		},
+		"storer Search error": {
+			d: &Directory{
+				BaseServer: baseServer,
+				storer: &fixedStorer{
+					searchErr: errors.New("some Search error"),
+				},
+			},
+			rq: &api.SearchEntityRequest{
+				Query: "some query",
+			},
+		},
+	}
+
+	for desc, c := range cases {
+		rp, err := c.d.SearchEntity(context.Background(), c.rq)
 		assert.NotNil(t, err, desc)
 		assert.Nil(t, rp, desc)
 	}

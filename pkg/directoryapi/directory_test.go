@@ -1,20 +1,11 @@
 package directoryapi
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-var okEntity = &Entity{
-	TypeAttributes: &Entity_Patient{
-		Patient: &Patient{
-			LastName:  "Last Name",
-			FirstName: "First Name",
-			Birthdate: &Date{Year: 2006, Month: 1, Day: 2},
-		},
-	},
-}
 
 func TestValidatePutEntityRequest(t *testing.T) {
 	cases := map[string]struct {
@@ -23,7 +14,7 @@ func TestValidatePutEntityRequest(t *testing.T) {
 	}{
 		"ok": {
 			rq: &PutEntityRequest{
-				Entity: okEntity,
+				Entity: NewTestPatient(0, false),
 			},
 			expected: nil,
 		},
@@ -68,7 +59,7 @@ func TestValidateEntity(t *testing.T) {
 		expected error
 	}{
 		"ok": {
-			e:        okEntity,
+			e:        NewTestPatient(0, false),
 			expected: nil,
 		},
 		"missing type attributes": {
@@ -76,44 +67,28 @@ func TestValidateEntity(t *testing.T) {
 			expected: ErrMissingTypeAttributes,
 		},
 		"patient missing last name": {
-			e: &Entity{
-				TypeAttributes: &Entity_Patient{
-					Patient: &Patient{
-						FirstName: "First Name",
-						Birthdate: &Date{Year: 2006, Month: 1, Day: 2},
-					},
-				},
-			},
+			e: NewPatient("", &Patient{
+				FirstName: "First Name",
+				Birthdate: &Date{Year: 2006, Month: 1, Day: 2},
+			}),
 			expected: ErrPatientMissingLastName,
 		},
 		"patient missing first name": {
-			e: &Entity{
-				TypeAttributes: &Entity_Patient{
-					Patient: &Patient{
-						LastName:  "Last Name",
-						Birthdate: &Date{Year: 2006, Month: 1, Day: 2},
-					},
-				},
-			},
+			e: NewPatient("", &Patient{
+				LastName:  "Last Name",
+				Birthdate: &Date{Year: 2006, Month: 1, Day: 2},
+			}),
 			expected: ErrPatientMissingFirstName,
 		},
 		"patient missing birthdate": {
-			e: &Entity{
-				TypeAttributes: &Entity_Patient{
-					Patient: &Patient{
-						LastName:  "Last Name",
-						FirstName: "First Name",
-					},
-				},
-			},
+			e: NewPatient("", &Patient{
+				LastName:  "Last Name",
+				FirstName: "First Name",
+			}),
 			expected: ErrPatientMissingBirthdate,
 		},
 		"office missing name": {
-			e: &Entity{
-				TypeAttributes: &Entity_Office{
-					Office: &Office{},
-				},
-			},
+			e:        NewOffice("", &Office{}),
 			expected: ErrOfficeMissingName,
 		},
 	}
@@ -121,6 +96,53 @@ func TestValidateEntity(t *testing.T) {
 	for desc, c := range cases {
 		err := ValidateEntity(c.e)
 		assert.Equal(t, c.expected, err, desc)
+	}
+}
+
+func TestValidateSearchEntityRequest(t *testing.T) {
+	cases := map[string]struct {
+		rq       *SearchEntityRequest
+		expected error
+	}{
+		"ok": {
+			rq: &SearchEntityRequest{
+				Query: strings.Repeat("A", 4),
+				Limit: 1,
+			},
+			expected: nil,
+		},
+		"query too short": {
+			rq: &SearchEntityRequest{
+				Query: strings.Repeat("A", 3),
+				Limit: 1,
+			},
+			expected: nil,
+		},
+		"query too long": {
+			rq: &SearchEntityRequest{
+				Query: strings.Repeat("A", 33),
+				Limit: 1,
+			},
+			expected: nil,
+		},
+		"limit too small": {
+			rq: &SearchEntityRequest{
+				Query: strings.Repeat("A", 4),
+				Limit: 0,
+			},
+			expected: nil,
+		},
+		"limit too large": {
+			rq: &SearchEntityRequest{
+				Query: strings.Repeat("A", 4),
+				Limit: 9,
+			},
+			expected: nil,
+		},
+	}
+	for desc, c := range cases {
+		err := ValidateSearchEntityRequest(c.rq)
+		assert.Equal(t, err, c.expected, desc)
 	}
 }
 

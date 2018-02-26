@@ -2,16 +2,17 @@ syntax = "proto3";
 
 package directoryapi;
 
-// TODO comments
-
+// Directory service manages entities, including patients, offices, and others.
 service Directory {
+
+    // PutEntity adds a new or updates an existing entity.
     rpc PutEntity (PutEntityRequest) returns (PutEntityResponse) {}
+
+    // GetEntity returns an existing entity with the given entity ID.
     rpc GetEntity (GetEntityRequest) returns (GetEntityResponse) {}
 
-    // TODO (drausin) add additional endpoints
-    // - SearchEntity
-    // - PutKeychain
-    // - GetKeychain
+    // SearchEntity searches for entities matching the given query.
+    rpc SearchEntity (SearchEntityRequest) returns (SearchEntityResponse) {}
 }
 
 message PutEntityRequest {
@@ -30,6 +31,14 @@ message GetEntityResponse {
     Entity entity = 1;
 }
 
+message SearchEntityRequest {
+    string query = 1;
+    uint32 limit = 2;
+}
+
+message SearchEntityResponse {
+    repeated Entity entities = 1;
+}
 
 message Entity {
     string entity_id = 1;
@@ -49,7 +58,7 @@ message Patient {
 
 message Office {
     string name = 1;
-    // TODO (drausin) address
+    // TODO (drausin) address/location
 }
 
 message Date {
