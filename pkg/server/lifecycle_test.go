@@ -1,7 +1,12 @@
 package server
 
-/*
-TODO (drausin) uncomment once have in-memory storer
+import (
+	"sync"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
 func TestStart(t *testing.T) {
 	up := make(chan *Directory, 1)
 	wg1 := new(sync.WaitGroup)
@@ -18,4 +23,3 @@ func TestStart(t *testing.T) {
 	x.StopServer()
 	wg1.Wait()
 }
-*/

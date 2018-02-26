@@ -6,6 +6,7 @@ import (
 
 	errors2 "github.com/drausin/libri/libri/common/errors"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	"github.com/elxirhealth/directory/pkg/server/storage/id"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
 )
@@ -29,11 +30,14 @@ const (
 
 	// Postgres indicates storage backed by a Postgres DB.
 	Postgres
+
+	// Memory indicates storage backed by an in-memory map.
+	Memory
 )
 
 var (
 	// DefaultStorage is the default storage type.
-	DefaultStorage = Postgres
+	DefaultStorage = Memory
 
 	// DefaultPutQueryTimeout is the default timeout for DB INSERT or UPDATE queries used to in
 	// a Storer's PutEntity method.
@@ -73,6 +77,8 @@ func (t Type) String() string {
 	switch t {
 	case Postgres:
 		return "Postgres"
+	case Memory:
+		return "Memory"
 	default:
 		return "Unspecified"
 	}
@@ -186,4 +192,18 @@ func (ess *EntitySims) Pop() interface{} {
 // Peak returns the EntitySim from the root of the heap.
 func (ess EntitySims) Peak() *EntitySim {
 	return ess[0]
+}
+
+// MaybeAddEntityID adds a newly generated ID from idGen if e.EntityId is missing.
+func MaybeAddEntityID(e *api.Entity, idGen id.Generator) (added bool, err error) {
+	if e.EntityId != "" {
+		return false, nil
+	}
+	idPrefix := GetEntityType(e).IDPrefix()
+	entityID, err := idGen.Generate(idPrefix)
+	if err != nil {
+		return false, err
+	}
+	e.EntityId = entityID
+	return true, nil
 }

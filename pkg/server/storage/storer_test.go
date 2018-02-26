@@ -3,9 +3,12 @@ package storage
 import (
 	"container/heap"
 	"math"
+	"math/rand"
 	"testing"
 
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	"github.com/elxirhealth/directory/pkg/server/storage/id"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,4 +43,36 @@ func TestEntitySim(t *testing.T) {
 	es.Add("Search2", 0.3)
 	assert.Equal(t, searcherSimilarities{"Search1": 0.2, "Search2": 0.3}, es.Similarities)
 	assert.Equal(t, float32(math.Sqrt(0.2*0.2+0.3*0.3)), es.Similarity())
+}
+
+func TestMaybeAddEntityID(t *testing.T) {
+	rng := rand.New(rand.NewSource(0))
+	okIDGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+
+	added, err := MaybeAddEntityID(api.NewTestPatient(0, false), okIDGen)
+	assert.Nil(t, err)
+	assert.True(t, added)
+
+	added, err = MaybeAddEntityID(api.NewTestPatient(0, true), okIDGen)
+	assert.Nil(t, err)
+	assert.False(t, added)
+
+	errIDGen := &fixedIDGen{generateErr: errors.New("some Generate error")}
+	added, err = MaybeAddEntityID(api.NewTestPatient(0, false), errIDGen)
+	assert.NotNil(t, err)
+	assert.False(t, added)
+}
+
+type fixedIDGen struct {
+	checkErr    error
+	generateID  string
+	generateErr error
+}
+
+func (f *fixedIDGen) Check(id string) error {
+	return f.checkErr
+}
+
+func (f *fixedIDGen) Generate(prefix string) (string, error) {
+	return f.generateID, f.generateErr
 }
