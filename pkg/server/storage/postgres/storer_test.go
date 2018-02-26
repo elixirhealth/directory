@@ -322,25 +322,25 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 			getStorer: func() storage.Storer { return okStorer },
 			query:     "A",
 			limit:     okLimit,
-			expected:  ErrSearchQueryTooShort,
+			expected:  api.ErrSearchQueryTooShort,
 		},
 		"query too long": {
 			getStorer: func() storage.Storer { return okStorer },
 			query:     strings.Repeat("A", 33),
 			limit:     okLimit,
-			expected:  ErrSearchQueryTooLong,
+			expected:  api.ErrSearchQueryTooLong,
 		},
 		"limit too small": {
 			getStorer: func() storage.Storer { return okStorer },
 			query:     okQuery,
 			limit:     0,
-			expected:  ErrSearchLimitTooSmall,
+			expected:  api.ErrSearchLimitTooSmall,
 		},
 		"limit too large": {
 			getStorer: func() storage.Storer { return okStorer },
 			query:     okQuery,
 			limit:     9,
-			expected:  ErrSearchLimitTooLarge,
+			expected:  api.ErrSearchLimitTooLarge,
 		},
 		"unexpected query error": {
 			getStorer: func() storage.Storer {

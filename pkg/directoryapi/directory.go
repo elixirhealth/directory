@@ -6,6 +6,20 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// MinSearchQueryLen is the minimum length for an entity search query.
+	MinSearchQueryLen = 4
+
+	// MaxSearchQueryLen is the maximum length for an entity search query.
+	MaxSearchQueryLen = 32
+
+	// MinSearchLimit is the minimum size for an entity search limit.
+	MinSearchLimit = 1
+
+	// MaxSearchLimit is the maximum size for an entity search limit.
+	MaxSearchLimit = 8
+)
+
 var (
 	// ErrPutMissingEntity denotes when a Put request is missing the Entity object.
 	ErrPutMissingEntity = errors.New("put request missing entity")
@@ -28,6 +42,24 @@ var (
 
 	// ErrOfficeMissingName denotes when an office entity is missing the name.
 	ErrOfficeMissingName = errors.New("office missing name")
+
+	// ErrSearchQueryTooShort identifies when a search query string is shorter than the minimum
+	// length.
+	ErrSearchQueryTooShort = fmt.Errorf("search query shorter than min length %d",
+		MinSearchQueryLen)
+
+	// ErrSearchQueryTooLong identifies when a search query string is longer than the maximum
+	// length.
+	ErrSearchQueryTooLong = fmt.Errorf("search query longer than max length %d",
+		MaxSearchQueryLen)
+
+	// ErrSearchLimitTooSmall identifies when a search limit is smaller than the minimum value.
+	ErrSearchLimitTooSmall = fmt.Errorf("search limit smaller than min length %d",
+		MinSearchLimit)
+
+	// ErrSearchLimitTooLarge identifies when a search limit is alarger than the maximum value.
+	ErrSearchLimitTooLarge = fmt.Errorf("search limit larger than max length %d",
+		MaxSearchLimit)
 
 	errUnknownEntityType = errors.New("unknown entity type")
 )
@@ -61,6 +93,29 @@ func ValidateEntity(e *Entity) error {
 		return validateOffice(ta.Office)
 	}
 	panic(errUnknownEntityType)
+}
+
+// ValidateSearchEntityRequest checks that the SearchEntityRequest fields have values within the
+// required ranges/sizes.
+func ValidateSearchEntityRequest(rq *SearchEntityRequest) error {
+	return ValidateSearchQuery(rq.Query, rq.Limit)
+}
+
+// ValidateSearchQuery checks that the query and limit have values within the required ranges/sizes.
+func ValidateSearchQuery(query string, limit uint32) error {
+	if len(query) < MinSearchQueryLen {
+		return ErrSearchQueryTooShort
+	}
+	if len(query) > MaxSearchQueryLen {
+		return ErrSearchQueryTooLong
+	}
+	if limit > MaxSearchLimit {
+		return ErrSearchLimitTooLarge
+	}
+	if limit < MinSearchLimit {
+		return ErrSearchLimitTooSmall
+	}
+	return nil
 }
 
 func validatePatient(p *Patient) error {

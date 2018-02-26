@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"sync"
 
 	sq "github.com/Masterminds/squirrel"
@@ -18,32 +17,10 @@ import (
 
 const (
 	pqUniqueViolationErrCode = "23505"
-	minSearchQueryLen        = 4
-	maxSearchQueryLen        = 32
-	minSearchLimit           = 1
-	maxSearchLimit           = 8
 )
 
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-
-	// ErrSearchQueryTooShort identifies when a search query string is shorter than the minimum
-	// length.
-	ErrSearchQueryTooShort = fmt.Errorf("search query shorter than min length %d",
-		minSearchQueryLen)
-
-	// ErrSearchQueryTooLong identifies when a search query string is longer than the maximum
-	// length.
-	ErrSearchQueryTooLong = fmt.Errorf("search query longer than max length %d",
-		maxSearchQueryLen)
-
-	// ErrSearchLimitTooSmall identifies when a search limit is smaller than the minimum value.
-	ErrSearchLimitTooSmall = fmt.Errorf("search limit smaller than min length %d",
-		minSearchLimit)
-
-	// ErrSearchLimitTooLarge identifies when a search limit is alarger than the maximum value.
-	ErrSearchLimitTooLarge = fmt.Errorf("search limit larger than max length %d",
-		maxSearchLimit)
 
 	errEmptyDBUrl            = errors.New("empty DB URL")
 	errUnexpectedStorageType = errors.New("unexpected storage type")
@@ -155,7 +132,7 @@ func (ps *storer) GetEntity(entityID string) (*api.Entity, error) {
 }
 
 func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
-	if err := ps.validateSearchQuery(query, limit); err != nil {
+	if err := api.ValidateSearchQuery(query, uint32(limit)); err != nil {
 		return nil, err
 	}
 	errs := make(chan error, len(searchers))
@@ -240,22 +217,6 @@ func (ps *storer) maybeAddEntityID(e *api.Entity) (added bool, err error) {
 	}
 	e.EntityId = entityID
 	return true, nil
-}
-
-func (ps *storer) validateSearchQuery(query string, limit uint) error {
-	if len(query) < minSearchQueryLen {
-		return ErrSearchQueryTooShort
-	}
-	if len(query) > maxSearchQueryLen {
-		return ErrSearchQueryTooLong
-	}
-	if limit > maxSearchLimit {
-		return ErrSearchLimitTooLarge
-	}
-	if limit < minSearchLimit {
-		return ErrSearchLimitTooSmall
-	}
-	return nil
 }
 
 type queryRows interface {
