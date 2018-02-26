@@ -116,33 +116,33 @@ func TestValidateSearchEntityRequest(t *testing.T) {
 				Query: strings.Repeat("A", 3),
 				Limit: 1,
 			},
-			expected: nil,
+			expected: ErrSearchQueryTooShort,
 		},
 		"query too long": {
 			rq: &SearchEntityRequest{
 				Query: strings.Repeat("A", 33),
 				Limit: 1,
 			},
-			expected: nil,
+			expected: ErrSearchQueryTooLong,
 		},
 		"limit too small": {
 			rq: &SearchEntityRequest{
 				Query: strings.Repeat("A", 4),
 				Limit: 0,
 			},
-			expected: nil,
+			expected: ErrSearchLimitTooSmall,
 		},
 		"limit too large": {
 			rq: &SearchEntityRequest{
 				Query: strings.Repeat("A", 4),
 				Limit: 9,
 			},
-			expected: nil,
+			expected: ErrSearchLimitTooLarge,
 		},
 	}
 	for desc, c := range cases {
 		err := ValidateSearchEntityRequest(c.rq)
-		assert.Equal(t, err, c.expected, desc)
+		assert.Equal(t, c.expected, err, desc)
 	}
 }
 
