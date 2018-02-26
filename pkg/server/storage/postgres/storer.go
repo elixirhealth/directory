@@ -13,6 +13,7 @@ import (
 	"github.com/elxirhealth/directory/pkg/server/storage/id"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 const (
@@ -54,12 +55,15 @@ type storer struct {
 	db      *sql.DB
 	dbCache sq.DBProxyContext
 	qr      querier
-	srm     searchResultMerger
+	newSRM  func() searchResultMerger
+	logger  *zap.Logger
 }
 
 // New creates a new Storer backed by a Postgres DB at the given dbURL and with the
 // given ChecksumIDGenerator.
-func New(dbURL string, idGen id.Generator, params *storage.Parameters) (storage.Storer, error) {
+func New(
+	dbURL string, idGen id.Generator, params *storage.Parameters, logger *zap.Logger,
+) (storage.Storer, error) {
 	if dbURL == "" {
 		return nil, errEmptyDBUrl
 	}
@@ -74,7 +78,8 @@ func New(dbURL string, idGen id.Generator, params *storage.Parameters) (storage.
 		db:      db,
 		dbCache: sq.NewStmtCacher(db),
 		qr:      &querierImpl{},
-		srm:     newSearchResultMerger(),
+		newSRM:  func() searchResultMerger { return newSearchResultMerger() },
+		logger:  logger,
 	}, nil
 }
 
@@ -99,10 +104,17 @@ func (ps *storer) PutEntity(e *api.Entity) (string, error) {
 	vals := getPutStmtValues(e)
 	ctx, cancel := context.WithTimeout(context.Background(), ps.params.PutQueryTimeout)
 	if insert {
-		q := psql.RunWith(tx).Insert(fqTbl).SetMap(vals)
+		q := psql.RunWith(tx).
+			Insert(fqTbl).
+			SetMap(vals)
+		ps.logger.Debug("inserting entity", logPutInsert(q, e)...)
 		_, err = ps.qr.InsertExecContext(ctx, q)
 	} else {
-		q := psql.RunWith(tx).Update(fqTbl).SetMap(vals)
+		q := psql.RunWith(tx).
+			Update(fqTbl).
+			SetMap(vals).
+			Where(sq.Eq{entityIDCol: e.EntityId})
+		ps.logger.Debug("updating entity", logPutUpdate(q, e)...)
 		_, err = ps.qr.UpdateExecContext(ctx, q)
 	}
 	cancel()
@@ -115,6 +127,7 @@ func (ps *storer) PutEntity(e *api.Entity) (string, error) {
 		_ = tx.Rollback()
 		return "", err
 	}
+	ps.logger.Debug("successfully stored entity", logPutResult(e.EntityId, insert)...)
 	return e.EntityId, tx.Commit()
 }
 
@@ -128,6 +141,7 @@ func (ps *storer) GetEntity(entityID string) (*api.Entity, error) {
 		Select(cols...).
 		From(fullTableName(et)).
 		Where(sq.Eq{entityIDCol: entityID})
+	ps.logger.Debug("getting entity", logGetSelect(q, et, entityID)...)
 	ctx, cancel := context.WithTimeout(context.Background(), ps.params.GetQueryTimeout)
 	defer cancel()
 	row := ps.qr.SelectQueryRowContext(ctx, q)
@@ -136,6 +150,7 @@ func (ps *storer) GetEntity(entityID string) (*api.Entity, error) {
 	} else if err != nil {
 		return nil, err
 	}
+	ps.logger.Debug("successfully found entity", zap.String(logEntityID, entityID))
 	return create(), nil
 }
 
@@ -145,6 +160,7 @@ func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) 
 	}
 	errs := make(chan error, len(searchers))
 	wg1 := new(sync.WaitGroup)
+	srm := ps.newSRM()
 	for _, s1 := range searchers {
 		wg1.Add(1)
 		go func(s2 searcher, wg2 *sync.WaitGroup) {
@@ -157,13 +173,15 @@ func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) 
 				Where(s2.predicate(), s2.preprocQuery(query)).
 				OrderBy(similarityCol + " DESC").
 				Limit(uint64(limit))
+			ps.logger.Debug("searching for entity", logSearchSelect(q, s2, query)...)
 			ctx, cancel := context.WithTimeout(context.Background(),
 				ps.params.SearchQueryTimeout)
 			defer cancel()
 			rows, err := ps.qr.SelectQueryContext(ctx, q)
-			if err = ps.processSearchQuery(rows, err, s2); err != nil {
+			if err = ps.processSearchQuery(srm, rows, err, s2); err != nil {
 				errs <- err
 			}
+			ps.logger.Debug("searcher finished", logSearcherFinished(s2, query)...)
 
 		}(s1, wg1)
 	}
@@ -176,20 +194,24 @@ func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) 
 
 	// return just the entities, without their granular or norm'd similarity scores
 	es := make([]*api.Entity, limit)
-	for i, eSim := range ps.srm.top(limit) {
+	ess := srm.top(limit)
+	ps.logger.Debug("ranked search results", logSearchRanked(query, limit, ess)...)
+	for i, eSim := range ess {
 		es[i] = eSim.E
 	}
 	return es, nil
 }
 
-func (ps *storer) processSearchQuery(rows queryRows, err error, s searcher) error {
+func (ps *storer) processSearchQuery(
+	srm searchResultMerger, rows queryRows, err error, s searcher,
+) error {
 	if err != nil {
 		if err != context.DeadlineExceeded && err != sql.ErrNoRows {
 			return err
 		}
 		return nil
 	}
-	if err := ps.srm.merge(rows, s.name(), s.entityType()); err != nil {
+	if err := srm.merge(rows, s.name(), s.entityType()); err != nil {
 		return err
 	}
 	if err := rows.Err(); err != nil {

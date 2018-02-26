@@ -4,8 +4,10 @@ import (
 	"math"
 	"time"
 
+	errors2 "github.com/drausin/libri/libri/common/errors"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/pkg/errors"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -94,67 +96,94 @@ func NewDefaultParameters() *Parameters {
 	}
 }
 
+type searcherSimilarities map[string]float32
+
+func (ss searcherSimilarities) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	for searcher, sim := range ss {
+		enc.AddFloat32(searcher, sim)
+	}
+	return nil
+}
+
 // EntitySim contains an *api.Entity and its Similarities to the query for a number of different
 // Searches
 type EntitySim struct {
 	E                  *api.Entity
-	Similarities       map[string]float64
-	similaritySuffStat float64
+	Similarities       searcherSimilarities
+	similaritySuffStat float32
 }
 
 // NewEntitySim creates a new *EntitySim for the given *Entity.
 func NewEntitySim(e *api.Entity) *EntitySim {
 	return &EntitySim{
 		E:            e,
-		Similarities: make(map[string]float64),
+		Similarities: make(map[string]float32),
 	}
 }
 
+// MarshalLogObject writes the EntitySim to the given ObjectEncoder.
+func (e *EntitySim) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddString(logEntityID, e.E.EntityId)
+	enc.AddFloat32(logSimilarity, e.Similarity())
+	err := enc.AddObject(logSimilarities, e.Similarities)
+	errors2.MaybePanic(err) // should never happen
+	return nil
+}
+
 // Add adds a new [0, 1] similarity score for the given search name.
-func (e *EntitySim) Add(search string, similarity float64) {
+func (e *EntitySim) Add(search string, similarity float32) {
 	e.Similarities[search] = similarity
 	// L-2 suff stat is sum of squares
 	e.similaritySuffStat += similarity * similarity
 }
 
 // Similarity returns the combined similarity over all the searches.
-func (e *EntitySim) Similarity() float64 {
-	return math.Sqrt(e.similaritySuffStat)
+func (e *EntitySim) Similarity() float32 {
+	return float32(math.Sqrt(float64(e.similaritySuffStat)))
 }
 
 // EntitySims is a min-heap of entity Similarities
 type EntitySims []*EntitySim
 
+// MarshalLogArray writes the ArrayEncoder to the given ArrayEncoder.
+func (ess EntitySims) MarshalLogArray(enc zapcore.ArrayEncoder) error {
+	for _, es := range ess {
+		err := enc.AppendObject(es)
+		errors2.MaybePanic(err) // should never happen
+	}
+	return nil
+}
+
 // Len returns the number of entity sims.
-func (es EntitySims) Len() int {
-	return len(es)
+func (ess EntitySims) Len() int {
+	return len(ess)
 }
 
 // Less returns whether entity sim i has a similarity less than that of j.
-func (es EntitySims) Less(i, j int) bool {
-	return es[i].Similarity() < es[j].Similarity()
+func (ess EntitySims) Less(i, j int) bool {
+	return ess[i].Similarity() < ess[j].Similarity()
 }
 
 // Swap swaps the entity sim i and j.
-func (es EntitySims) Swap(i, j int) {
-	es[i], es[j] = es[j], es[i]
+func (ess EntitySims) Swap(i, j int) {
+	ess[i], ess[j] = ess[j], ess[i]
 }
 
 // Push adds the given EntitySim to the heap.
-func (es *EntitySims) Push(x interface{}) {
-	*es = append(*es, x.(*EntitySim))
+func (ess *EntitySims) Push(x interface{}) {
+	*ess = append(*ess, x.(*EntitySim))
 }
 
 // Pop removes the EntitySim from the root of the heap.
-func (es *EntitySims) Pop() interface{} {
-	old := *es
+func (ess *EntitySims) Pop() interface{} {
+	old := *ess
 	n := len(old)
 	x := old[n-1]
-	*es = old[0 : n-1]
+	*ess = old[0 : n-1]
 	return x
 }
 
 // Peak returns the EntitySim from the root of the heap.
-func (es EntitySims) Peak() *EntitySim {
-	return es[0]
+func (ess EntitySims) Peak() *EntitySim {
+	return ess[0]
 }

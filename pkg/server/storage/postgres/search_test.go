@@ -25,10 +25,10 @@ func TestSearchResultMergerImpl_merge(t *testing.T) {
 	}
 }
 
-func testEntitySims(simMult float64, search string, n int) storage.EntitySims {
+func testEntitySims(simMult float32, search string, n int) storage.EntitySims {
 	ess := make(storage.EntitySims, n)
 	for i := range ess {
-		sim := simMult * float64(i)
+		sim := simMult * float32(i)
 		es := storage.NewEntitySim(api.NewTestOffice(i, true))
 		es.Add(search, sim)
 		ess[i] = es
@@ -58,6 +58,9 @@ func TestSearchResultMergerImpl_top(t *testing.T) {
 	top := srm.top(2)
 	assert.Equal(t, 2, len(top))
 	assert.Equal(t, storage.EntitySims{es4, es2}, top)
+
+	top = srm.top(6)
+	assert.Equal(t, 4, len(top))
 }
 
 type fixedOfficeRows struct {

@@ -68,7 +68,7 @@ func (ps *btreeSearcher) predicate() string {
 func (ps *btreeSearcher) similarity() string {
 	// since we assume that match occurred, the similarity is the fraction of indexed
 	// indexedValue that the prefix matches
-	return fmt.Sprintf("char_length($1)::real / char_length(%s)::real AS %s", entityIDCol,
+	return fmt.Sprintf("(char_length($1)-1)::real / char_length(%s)::real AS %s", entityIDCol,
 		similarityCol)
 }
 
@@ -132,7 +132,7 @@ func (srm *searchResultMergerImpl) merge(
 		// prepare the destination slice for the entity with an extra slot for it's
 		// similarity, which we assume is the last in the search query
 		_, entityDest, createEntity := prepEntityScan(et, 1)
-		var simDest float64
+		var simDest float32
 		dest := append(entityDest, &simDest)
 		if err := rs.Scan(dest...); err != nil {
 			return err
@@ -162,5 +162,8 @@ func (srm *searchResultMergerImpl) top(n uint) storage.EntitySims {
 	}
 	srm.mu.Unlock()
 	sort.Sort(sort.Reverse(ess)) // sort descending
+	if ess.Len() < int(n) {
+		return *ess
+	}
 	return (*ess)[:n]
 }

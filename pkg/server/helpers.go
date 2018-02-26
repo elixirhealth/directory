@@ -6,6 +6,7 @@ import (
 	"github.com/elxirhealth/directory/pkg/server/storage"
 	"github.com/elxirhealth/directory/pkg/server/storage/id"
 	pgstorage "github.com/elxirhealth/directory/pkg/server/storage/postgres"
+	"go.uber.org/zap"
 )
 
 var (
@@ -13,11 +14,11 @@ var (
 	ErrInvalidStorageType = errors.New("invalid storage type")
 )
 
-func getStorer(config *Config) (storage.Storer, error) {
+func getStorer(config *Config, logger *zap.Logger) (storage.Storer, error) {
 	idGen := id.NewDefaultGenerator()
 	switch config.Storage.Type {
 	case storage.Postgres:
-		return pgstorage.New(config.DBUrl, idGen, config.Storage)
+		return pgstorage.New(config.DBUrl, idGen, config.Storage, logger)
 	default:
 		return nil, ErrInvalidStorageType
 	}

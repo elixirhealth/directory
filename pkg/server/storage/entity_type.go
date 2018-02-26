@@ -9,10 +9,10 @@ import (
 // EntityType is an enum for different types of entities.
 type EntityType int
 
-const (
-	// NEntityTypes defines the number of entity types.
-	NEntityTypes = 2
+// NEntityTypes defines the number of entity types.
+const NEntityTypes = 2
 
+const (
 	// Patient identities a patient entity type.
 	Patient EntityType = iota
 

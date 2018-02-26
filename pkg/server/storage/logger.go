@@ -6,6 +6,9 @@ const (
 	logStorageType     = "storage_type"
 	logPutQueryTimeout = "put_query_timeout"
 	logGetQueryTimeout = "get_query_timeout"
+	logEntityID        = "entity_id"
+	logSimilarities    = "similarities"
+	logSimilarity      = "similarity"
 )
 
 // MarshalLogObject writes the parameters to the given object encoder.

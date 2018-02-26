@@ -11,13 +11,16 @@ import (
 	"testing"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/drausin/libri/libri/common/logging"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/elxirhealth/directory/pkg/server/storage"
 	"github.com/elxirhealth/directory/pkg/server/storage/id"
-	"github.com/elxirhealth/directory/pkg/server/storage/migrations"
+	"github.com/elxirhealth/directory/pkg/server/storage/postgres/migrations"
 	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/mattes/migrate/source/go-bindata"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -53,6 +56,7 @@ func TestMain(m *testing.M) {
 
 func TestNewPostgres_err(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
+	lg := zap.NewNop()
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	params := storage.NewDefaultParameters()
 	cases := map[string]struct {
@@ -74,7 +78,7 @@ func TestNewPostgres_err(t *testing.T) {
 	}
 
 	for desc, c := range cases {
-		s, err := New(c.dbURL, c.idGen, c.params)
+		s, err := New(c.dbURL, c.idGen, c.params, lg)
 		assert.NotNil(t, err, desc)
 		assert.Nil(t, s, desc)
 	}
@@ -89,7 +93,8 @@ func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(0))
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
-	s, err := New(dbURL, idGen, storage.NewDefaultParameters())
+	lg := logging.NewDevLogger(zapcore.DebugLevel)
+	s, err := New(dbURL, idGen, storage.NewDefaultParameters(), lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -128,12 +133,15 @@ func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
 		entityID, err := s.PutEntity(c.original)
 		assert.Nil(t, err, et.String())
 		assert.Equal(t, entityID, c.original.EntityId, et.String())
+	}
 
+	for et, c := range cases {
+		entityID := c.original.EntityId
 		gottenOriginal, err := s.GetEntity(entityID)
 		assert.Nil(t, err, et.String())
 		assert.Equal(t, c.original, gottenOriginal)
 
-		c.updated.EntityId = entityID
+		c.updated.EntityId = c.original.EntityId
 		entityID, err = s.PutEntity(c.updated)
 		assert.Nil(t, err)
 		assert.Equal(t, entityID, c.updated.EntityId)
@@ -153,7 +161,8 @@ func TestPostgresStorer_GetEntity_err(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(0))
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
-	s, err := New(dbURL, idGen, storage.NewDefaultParameters())
+	lg := zap.NewNop()
+	s, err := New(dbURL, idGen, storage.NewDefaultParameters(), lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -178,6 +187,7 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
+	lg := zap.NewNop()
 	okIDGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	okID, err := okIDGen.Generate(storage.Patient.IDPrefix())
 	assert.Nil(t, err)
@@ -214,7 +224,7 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	}
 
 	// two puts with same gen'd ID
-	s, err := New(dbURL, &fixedIDGen{generateID: okID}, storage.NewDefaultParameters())
+	s, err := New(dbURL, &fixedIDGen{generateID: okID}, storage.NewDefaultParameters(), lg)
 	assert.Nil(t, err)
 	okEntity.EntityId = ""
 	_, err = s.PutEntity(okEntity)
@@ -232,8 +242,9 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	}()
 
 	rng := rand.New(rand.NewSource(0))
+	lg := logging.NewDevLogger(zapcore.DebugLevel)
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
-	s, err := New(dbURL, idGen, storage.NewDefaultParameters())
+	s, err := New(dbURL, idGen, storage.NewDefaultParameters(), lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -272,7 +283,7 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	_, ok = found[2].TypeAttributes.(*api.Entity_Office)
 	assert.True(t, ok)
 
-	query = strings.ToLower(entityIDs[1]) // 2nd patient's entityID diff case
+	query = strings.ToLower(entityIDs[1][:4]) // 2nd patient's first 4 chars of entityID diff case
 	found, err = s.SearchEntity(query, limit)
 	assert.Nil(t, err)
 	assert.Equal(t, limit, uint(len(found)))
@@ -280,7 +291,7 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	// check that first result is the patient with an entityID that matches the query
 	_, ok = found[0].TypeAttributes.(*api.Entity_Patient)
 	assert.True(t, ok)
-	assert.Equal(t, strings.ToUpper(query), found[0].EntityId)
+	assert.True(t, strings.HasPrefix(found[0].EntityId, strings.ToUpper(query)))
 }
 
 func TestPostgresStorer_SearchEntity_err(t *testing.T) {
@@ -292,8 +303,9 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(0))
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+	lg := zap.NewNop()
 	params := storage.NewDefaultParameters()
-	okStorer, err := New(dbURL, idGen, storage.NewDefaultParameters())
+	okStorer, err := New(dbURL, idGen, storage.NewDefaultParameters(), lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, okStorer)
 
@@ -332,7 +344,7 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 		},
 		"unexpected query error": {
 			getStorer: func() storage.Storer {
-				s, err := New(dbURL, idGen, params)
+				s, err := New(dbURL, idGen, params, lg)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
 				s.(*storer).qr = &fixedQuerier{selectQueryErr: errTest}
@@ -345,12 +357,14 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 		},
 		"unexpected merge error": {
 			getStorer: func() storage.Storer {
-				s, err := New(dbURL, idGen, params)
+				s, err := New(dbURL, idGen, params, lg)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
 				s.(*storer).qr = &fixedQuerier{}
-				s.(*storer).srm = &fixedSearchResultsMerger{
-					mergeErr: errTest,
+				s.(*storer).newSRM = func() searchResultMerger {
+					return &fixedSearchResultsMerger{
+						mergeErr: errTest,
+					}
 				}
 				return s
 			},
@@ -360,7 +374,7 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 		},
 		"queryRows error": {
 			getStorer: func() storage.Storer {
-				s, err := New(dbURL, idGen, params)
+				s, err := New(dbURL, idGen, params, lg)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
 				s.(*storer).qr = &fixedQuerier{
@@ -368,7 +382,9 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 						errErr: errTest,
 					},
 				}
-				s.(*storer).srm = &fixedSearchResultsMerger{}
+				s.(*storer).newSRM = func() searchResultMerger {
+					return &fixedSearchResultsMerger{}
+				}
 				return s
 			},
 			query:    okQuery,
@@ -377,7 +393,7 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 		},
 		"queryRows close error": {
 			getStorer: func() storage.Storer {
-				s, err := New(dbURL, idGen, params)
+				s, err := New(dbURL, idGen, params, lg)
 				assert.Nil(t, err)
 				assert.NotNil(t, s)
 				s.(*storer).qr = &fixedQuerier{
@@ -385,7 +401,9 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 						closeErr: errTest,
 					},
 				}
-				s.(*storer).srm = &fixedSearchResultsMerger{}
+				s.(*storer).newSRM = func() searchResultMerger {
+					return &fixedSearchResultsMerger{}
+				}
 				return s
 			},
 			query:    okQuery,

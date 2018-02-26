@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"strings"
 	"time"
 
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
@@ -24,7 +25,7 @@ const (
 )
 
 func fullTableName(et storage.EntityType) string {
-	return entitySchema + "." + et.String()
+	return entitySchema + "." + strings.ToLower(et.String())
 }
 
 // getPutStmtValues returns a map of column name -> value for the given entity for use in an
