@@ -6,53 +6,63 @@ import (
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 )
 
-type entityType int
+// EntityType is an enum for different types of entities.
+type EntityType int
 
-const nEntityTypes = 2
+// NEntityTypes defines the number of entity types.
+const NEntityTypes = 2
+
 const (
-	patient entityType = iota
-	office
+	// Patient identities a patient entity type.
+	Patient EntityType = iota
+
+	// Office identifies an office entity type.
+	Office
 )
 
-func (et entityType) string() string {
+// String returns a string representation for the entity type.
+func (et EntityType) String() string {
 	switch et {
-	case patient:
-		return "patient"
-	case office:
-		return "office"
+	case Patient:
+		return "Patient"
+	case Office:
+		return "Office"
 	default:
-		panic(errUnknownEntityType)
+		panic(ErrUnknownEntityType)
 	}
 }
 
-func (et entityType) idPrefix() string {
+// IDPrefix returns the prefix to use in constructing an ID for the entity type.
+func (et EntityType) IDPrefix() string {
 	switch et {
-	case patient:
+	case Patient:
 		return "P"
-	case office:
+	case Office:
 		return "F"
 	default:
-		panic(errUnknownEntityType)
+		panic(ErrUnknownEntityType)
 	}
 }
 
-func getEntityType(e *api.Entity) entityType {
+// GetEntityType returns the EntityType for the given *api.Entity.
+func GetEntityType(e *api.Entity) EntityType {
 	switch e.TypeAttributes.(type) {
 	case *api.Entity_Patient:
-		return patient
+		return Patient
 	case *api.Entity_Office:
-		return office
+		return Office
 	default:
-		panic(errUnknownEntityType)
+		panic(ErrUnknownEntityType)
 	}
 }
 
-func getEntityTypeFromID(entityID string) entityType {
-	for i := 0; i < nEntityTypes; i++ {
-		et := entityType(i)
-		if strings.HasPrefix(entityID, et.idPrefix()) {
+// GetEntityTypeFromID infers the EntityType from the prefix of the entity ID.
+func GetEntityTypeFromID(entityID string) EntityType {
+	for i := 0; i < NEntityTypes; i++ {
+		et := EntityType(i)
+		if strings.HasPrefix(entityID, et.IDPrefix()) {
 			return et
 		}
 	}
-	panic(errUnknownEntityType)
+	panic(ErrUnknownEntityType)
 }

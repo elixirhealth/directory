@@ -18,7 +18,7 @@ type Directory struct {
 // newDirectory creates a new DirectoryServer from the given config.
 func newDirectory(config *Config) (*Directory, error) {
 	baseServer := server.NewBaseServer(config.BaseConfig)
-	storer, err := getStorer(config)
+	storer, err := getStorer(config, baseServer.Logger)
 	if err != nil {
 		return nil, err
 	}

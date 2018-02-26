@@ -7,38 +7,38 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEntityType_string(t *testing.T) {
-	for i := 0; i < nEntityTypes; i++ {
-		et := entityType(i)
-		assert.NotEmpty(t, et.string())
+func TestEntityType_String(t *testing.T) {
+	for i := 0; i < NEntityTypes; i++ {
+		et := EntityType(i)
+		assert.NotEmpty(t, et.String())
 	}
 }
 
-func TestEntityType_idPrefix(t *testing.T) {
-	for i := 0; i < nEntityTypes; i++ {
-		et := entityType(i)
-		assert.NotEmpty(t, et.idPrefix())
+func TestEntityType_IDPrefix(t *testing.T) {
+	for i := 0; i < NEntityTypes; i++ {
+		et := EntityType(i)
+		assert.NotEmpty(t, et.IDPrefix())
 	}
 }
 
 func TestGetEntityType(t *testing.T) {
-	cases := map[entityType]*api.Entity{
-		patient: {TypeAttributes: &api.Entity_Patient{}},
-		office:  {TypeAttributes: &api.Entity_Office{}},
+	cases := map[EntityType]*api.Entity{
+		Patient: {TypeAttributes: &api.Entity_Patient{}},
+		Office:  {TypeAttributes: &api.Entity_Office{}},
 	}
-	assert.Equal(t, nEntityTypes, len(cases))
+	assert.Equal(t, NEntityTypes, len(cases))
 	for et, e := range cases {
-		assert.Equal(t, et, getEntityType(e))
+		assert.Equal(t, et, GetEntityType(e))
 	}
 }
 
 func TestGetEntityTypeFromID(t *testing.T) {
-	cases := map[entityType]string{
-		patient: "PAAAAAAA",
-		office:  "FAAAAAAA",
+	cases := map[EntityType]string{
+		Patient: "PAAAAAAA",
+		Office:  "FAAAAAAA",
 	}
-	assert.Equal(t, nEntityTypes, len(cases))
+	assert.Equal(t, NEntityTypes, len(cases))
 	for et, id := range cases {
-		assert.Equal(t, et, getEntityTypeFromID(id))
+		assert.Equal(t, et, GetEntityTypeFromID(id))
 	}
 }
