@@ -22,6 +22,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/Pallinder/go-randomdata"
+  packages = ["."]
+  revision = "442d37d9dbc782dbd737af9ec575d8858b79261b"
+
+[[projects]]
+  branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
   revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
@@ -434,6 +440,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8c649d5182d0c34100b72fa6471c96eb730012de2a48d00d3fd6d248c6b82ca7"
+  inputs-digest = "1a199f0eccce1a1756cf2749de3cead1d4b3c07cdb9f90c59442a80022c37326"
   solver-name = "gps-cdcl"
   solver-version = 1
