@@ -37,11 +37,14 @@ func TestMain(m *testing.M) {
 		}
 		log.Fatal("test postgres start error: " + err.Error())
 	}
+	as := bindata.Resource(migrations.AssetNames(), migrations.Asset)
+	logger := &migrations.LogLogger{}
 	setUpPostgresTest = func(t *testing.T) (string, func() error) {
-		return dbURL, bstorage.SetUpTestPostgresDB(t, dbURL, bindata.Resource(
-			migrations.AssetNames(),
-			func(name string) ([]byte, error) { return migrations.Asset(name) },
-		))
+		m := migrations.NewBindataMigrator(dbURL, as, logger)
+		if err := m.Up(); err != nil {
+			t.Fatal(err)
+		}
+		return dbURL, m.Down
 	}
 
 	code := m.Run()

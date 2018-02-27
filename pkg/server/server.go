@@ -29,7 +29,7 @@ func newDirectory(config *Config) (*Directory, error) {
 	}, nil
 }
 
-// PutEntity creates a new or updated an existing entity.
+// PutEntity creates a new or updates an existing entity.
 func (d *Directory) PutEntity(
 	ctx context.Context, rq *api.PutEntityRequest,
 ) (*api.PutEntityResponse, error) {
@@ -37,12 +37,13 @@ func (d *Directory) PutEntity(
 	if err := api.ValidatePutEntityRequest(rq); err != nil {
 		return nil, err
 	}
+	newEntity := rq.Entity.EntityId == ""
 	entityID, err := d.storer.PutEntity(rq.Entity)
 	if err != nil {
 		return nil, err
 	}
 	rp := &api.PutEntityResponse{EntityId: entityID}
-	d.Logger.Info("put entity", logPutEntityRp(rq, rp)...)
+	d.Logger.Info("put entity", logPutEntityRp(rq, rp, newEntity)...)
 	return rp, nil
 }
 
