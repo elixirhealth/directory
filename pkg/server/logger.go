@@ -35,10 +35,10 @@ func logSearchEntityRq(rq *api.SearchEntityRequest) []zapcore.Field {
 	}
 }
 
-func logPutEntityRp(rq *api.PutEntityRequest, rp *api.PutEntityResponse) []zapcore.Field {
+func logPutEntityRp(rq *api.PutEntityRequest, rp *api.PutEntityResponse, new bool) []zapcore.Field {
 	return []zapcore.Field{
 		zap.String(logEntityID, rp.EntityId),
-		zap.Bool(logNewEntity, rq.Entity.EntityId == ""),
+		zap.Bool(logNewEntity, new),
 		zap.String(logEntityType, rq.Entity.Type()),
 	}
 }

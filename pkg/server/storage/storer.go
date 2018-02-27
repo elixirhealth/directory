@@ -13,7 +13,7 @@ import (
 
 var (
 	// ErrMissingEntity indicates when an entity is requested with an ID that does not exist.
-	ErrMissingEntity = errors.New("not entity with given ID")
+	ErrMissingEntity = errors.New("no entity with given ID")
 
 	// ErrDupGenEntityID indicates when a newly generated entity ID already exists.
 	ErrDupGenEntityID = errors.New("duplicate entity ID generated")
