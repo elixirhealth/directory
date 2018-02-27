@@ -37,7 +37,7 @@ type storer struct {
 }
 
 // New creates a new Storer backed by a Postgres DB at the given dbURL and with the
-// given ChecksumIDGenerator.
+// given id.Generator, params, and logger.
 func New(
 	dbURL string, idGen id.Generator, params *storage.Parameters, logger *zap.Logger,
 ) (storage.Storer, error) {
@@ -60,39 +60,35 @@ func New(
 	}, nil
 }
 
-func (ps *storer) PutEntity(e *api.Entity) (string, error) {
+func (s *storer) PutEntity(e *api.Entity) (string, error) {
 	if e.EntityId != "" {
-		if err := ps.idGen.Check(e.EntityId); err != nil {
+		if err := s.idGen.Check(e.EntityId); err != nil {
 			return "", err
 		}
 	}
 	if err := api.ValidateEntity(e); err != nil {
 		return "", err
 	}
-	insert, err := ps.maybeAddEntityID(e)
-	if err != nil {
-		return "", err
-	}
-	tx, err := ps.db.Begin()
+	insert, err := storage.MaybeAddEntityID(e, s.idGen)
 	if err != nil {
 		return "", err
 	}
 	fqTbl := fullTableName(storage.GetEntityType(e))
 	vals := getPutStmtValues(e)
-	ctx, cancel := context.WithTimeout(context.Background(), ps.params.PutQueryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), s.params.PutQueryTimeout)
 	if insert {
-		q := psql.RunWith(tx).
+		q := psql.RunWith(s.dbCache).
 			Insert(fqTbl).
 			SetMap(vals)
-		ps.logger.Debug("inserting entity", logPutInsert(q, e)...)
-		_, err = ps.qr.InsertExecContext(ctx, q)
+		s.logger.Debug("inserting entity", logPutInsert(q, e)...)
+		_, err = s.qr.InsertExecContext(ctx, q)
 	} else {
-		q := psql.RunWith(tx).
+		q := psql.RunWith(s.dbCache).
 			Update(fqTbl).
 			SetMap(vals).
 			Where(sq.Eq{entityIDCol: e.EntityId})
-		ps.logger.Debug("updating entity", logPutUpdate(q, e)...)
-		_, err = ps.qr.UpdateExecContext(ctx, q)
+		s.logger.Debug("updating entity", logPutUpdate(q, e)...)
+		_, err = s.qr.UpdateExecContext(ctx, q)
 	}
 	cancel()
 	if err != nil {
@@ -101,65 +97,64 @@ func (ps *storer) PutEntity(e *api.Entity) (string, error) {
 				return "", storage.ErrDupGenEntityID
 			}
 		}
-		_ = tx.Rollback()
 		return "", err
 	}
-	ps.logger.Debug("successfully stored entity", logPutResult(e.EntityId, insert)...)
-	return e.EntityId, tx.Commit()
+	s.logger.Debug("successfully stored entity", logPutResult(e.EntityId, insert)...)
+	return e.EntityId, nil
 }
 
-func (ps *storer) GetEntity(entityID string) (*api.Entity, error) {
-	if err := ps.idGen.Check(entityID); err != nil {
+func (s *storer) GetEntity(entityID string) (*api.Entity, error) {
+	if err := s.idGen.Check(entityID); err != nil {
 		return nil, err
 	}
 	et := storage.GetEntityTypeFromID(entityID)
 	cols, dest, create := prepEntityScan(et, 0)
-	q := psql.RunWith(ps.dbCache).
+	q := psql.RunWith(s.dbCache).
 		Select(cols...).
 		From(fullTableName(et)).
 		Where(sq.Eq{entityIDCol: entityID})
-	ps.logger.Debug("getting entity", logGetSelect(q, et, entityID)...)
-	ctx, cancel := context.WithTimeout(context.Background(), ps.params.GetQueryTimeout)
+	s.logger.Debug("getting entity", logGetSelect(q, et, entityID)...)
+	ctx, cancel := context.WithTimeout(context.Background(), s.params.GetQueryTimeout)
 	defer cancel()
-	row := ps.qr.SelectQueryRowContext(ctx, q)
+	row := s.qr.SelectQueryRowContext(ctx, q)
 	if err := row.Scan(dest...); err == sql.ErrNoRows {
 		return nil, storage.ErrMissingEntity
 	} else if err != nil {
 		return nil, err
 	}
-	ps.logger.Debug("successfully found entity", zap.String(logEntityID, entityID))
+	s.logger.Debug("successfully found entity", zap.String(logEntityID, entityID))
 	return create(), nil
 }
 
-func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
+func (s *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) {
 	if err := api.ValidateSearchQuery(query, uint32(limit)); err != nil {
 		return nil, err
 	}
 	errs := make(chan error, len(searchers))
 	wg1 := new(sync.WaitGroup)
-	srm := ps.newSRM()
+	srm := s.newSRM()
 	for _, s1 := range searchers {
 		wg1.Add(1)
 		go func(s2 searcher, wg2 *sync.WaitGroup) {
 			defer wg2.Done()
 			entityCols, _, _ := prepEntityScan(s2.entityType(), 0)
 			selectCols := append(entityCols, s2.similarity())
-			q := psql.RunWith(ps.dbCache).
+			q := psql.RunWith(s.dbCache).
 				Select(selectCols...).
 				From(fullTableName(s2.entityType())).
 				Where(s2.predicate(), s2.preprocQuery(query)).
 				OrderBy(similarityCol + " DESC").
 				Limit(uint64(limit))
-			ps.logger.Debug("searching for entity", logSearchSelect(q, s2, query)...)
+			s.logger.Debug("searching for entity", logSearchSelect(q, s2, query)...)
 			ctx, cancel := context.WithTimeout(context.Background(),
-				ps.params.SearchQueryTimeout)
+				s.params.SearchQueryTimeout)
 			defer cancel()
-			rows, err := ps.qr.SelectQueryContext(ctx, q)
-			n, err := ps.processSearchQuery(srm, rows, err, s2)
+			rows, err := s.qr.SelectQueryContext(ctx, q)
+			n, err := s.processSearchQuery(srm, rows, err, s2)
 			if err != nil {
 				errs <- err
 			}
-			ps.logger.Debug("searcher finished", logSearcherFinished(s2, query, n)...)
+			s.logger.Debug("searcher finished", logSearcherFinished(s2, query, n)...)
 
 		}(s1, wg1)
 	}
@@ -173,15 +168,15 @@ func (ps *storer) SearchEntity(query string, limit uint) ([]*api.Entity, error) 
 	// return just the entities, without their granular or norm'd similarity scores
 	es := make([]*api.Entity, 0, limit)
 	ess := srm.top(limit)
-	ps.logger.Debug("ranked search results", logSearchRanked(query, limit, ess)...)
+	s.logger.Debug("ranked search results", logSearchRanked(query, limit, ess)...)
 	for _, eSim := range ess {
 		es = append(es, eSim.E)
 	}
 	return es, nil
 }
 
-func (ps *storer) processSearchQuery(
-	srm searchResultMerger, rows queryRows, err error, s searcher,
+func (s *storer) processSearchQuery(
+	srm searchResultMerger, rows queryRows, err error, sch searcher,
 ) (int, error) {
 	if err != nil {
 		if err != context.DeadlineExceeded && err != sql.ErrNoRows {
@@ -189,7 +184,7 @@ func (ps *storer) processSearchQuery(
 		}
 		return 0, nil
 	}
-	n, err := srm.merge(rows, s.name(), s.entityType())
+	n, err := srm.merge(rows, sch.name(), sch.entityType())
 	if err != nil {
 		return 0, err
 	}
@@ -202,21 +197,8 @@ func (ps *storer) processSearchQuery(
 	return n, nil
 }
 
-func (ps *storer) Close() error {
-	return ps.db.Close()
-}
-
-func (ps *storer) maybeAddEntityID(e *api.Entity) (added bool, err error) {
-	if e.EntityId != "" {
-		return false, nil
-	}
-	idPrefix := storage.GetEntityType(e).IDPrefix()
-	entityID, err := ps.idGen.Generate(idPrefix)
-	if err != nil {
-		return false, err
-	}
-	e.EntityId = entityID
-	return true, nil
+func (s *storer) Close() error {
+	return s.db.Close()
 }
 
 type queryRows interface {

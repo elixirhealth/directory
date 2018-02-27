@@ -84,7 +84,7 @@ func TestNewPostgres_err(t *testing.T) {
 	}
 }
 
-func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
+func TestStorer_PutGetEntity_ok(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
 	defer func() {
 		err := tearDown()
@@ -94,7 +94,9 @@ func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	lg := logging.NewDevLogger(zapcore.DebugLevel)
-	s, err := New(dbURL, idGen, storage.NewDefaultParameters(), lg)
+	params := storage.NewDefaultParameters()
+	params.Type = storage.Postgres
+	s, err := New(dbURL, idGen, params, lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -152,7 +154,7 @@ func TestPostgresStorer_PutGetEntity_ok(t *testing.T) {
 	}
 }
 
-func TestPostgresStorer_GetEntity_err(t *testing.T) {
+func TestStorer_GetEntity_err(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
 	defer func() {
 		err := tearDown()
@@ -161,8 +163,10 @@ func TestPostgresStorer_GetEntity_err(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(0))
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
+	params := storage.NewDefaultParameters()
+	params.Type = storage.Postgres
 	lg := zap.NewNop()
-	s, err := New(dbURL, idGen, storage.NewDefaultParameters(), lg)
+	s, err := New(dbURL, idGen, params, lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -179,7 +183,7 @@ func TestPostgresStorer_GetEntity_err(t *testing.T) {
 	assert.Nil(t, e)
 }
 
-func TestPostgresStorer_PutEntity_err(t *testing.T) {
+func TestStorer_PutEntity_err(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
 	defer func() {
 		err := tearDown()
@@ -188,6 +192,8 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(0))
 	lg := zap.NewNop()
+	params := storage.NewDefaultParameters()
+	params.Type = storage.Postgres
 	okIDGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	okID, err := okIDGen.Generate(storage.Patient.IDPrefix())
 	assert.Nil(t, err)
@@ -224,7 +230,7 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	}
 
 	// two puts with same gen'd ID
-	s, err := New(dbURL, &fixedIDGen{generateID: okID}, storage.NewDefaultParameters(), lg)
+	s, err := New(dbURL, &fixedIDGen{generateID: okID}, params, lg)
 	assert.Nil(t, err)
 	okEntity.EntityId = ""
 	_, err = s.PutEntity(okEntity)
@@ -234,7 +240,7 @@ func TestPostgresStorer_PutEntity_err(t *testing.T) {
 	assert.Equal(t, storage.ErrDupGenEntityID, err)
 }
 
-func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
+func TestStorer_SearchEntity_ok(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
 	defer func() {
 		err := tearDown()
@@ -244,7 +250,9 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
 	lg := logging.NewDevLogger(zapcore.DebugLevel)
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
-	s, err := New(dbURL, idGen, storage.NewDefaultParameters(), lg)
+	params := storage.NewDefaultParameters()
+	params.Type = storage.Postgres
+	s, err := New(dbURL, idGen, params, lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -294,7 +302,7 @@ func TestPostgresStorer_SearchEntity_ok(t *testing.T) {
 	assert.True(t, strings.HasPrefix(found[0].EntityId, strings.ToUpper(query)))
 }
 
-func TestPostgresStorer_SearchEntity_err(t *testing.T) {
+func TestStorer_SearchEntity_err(t *testing.T) {
 	dbURL, tearDown := setUpPostgresTest(t)
 	defer func() {
 		err := tearDown()
@@ -305,7 +313,8 @@ func TestPostgresStorer_SearchEntity_err(t *testing.T) {
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	lg := zap.NewNop()
 	params := storage.NewDefaultParameters()
-	okStorer, err := New(dbURL, idGen, storage.NewDefaultParameters(), lg)
+	params.Type = storage.Postgres
+	okStorer, err := New(dbURL, idGen, params, lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, okStorer)
 
