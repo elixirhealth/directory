@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -eou pipefail
+
+SERVICE_NAME=${1}
+BRANCH=${2}
+
+SERVICE_VERSION=$(./deploy/bin/${SERVICE_NAME} version)
+IMAGE="gcr.io/elxir-core-infra/${SERVICE_NAME}"
+IMAGE_TAG_SNAPSHOT="${IMAGE}:snapshot"
+IMAGE_TAG_LATEST="${IMAGE}:version"
+IMAGE_TAG_VERSION="${IMAGE}:${SERVICE_VERSION}"
+
+if [[ "${BRANCH}" == "master" ]]; then
+  docker tag "${IMAGE_TAG_SNAPSHOT}" "${IMAGE_TAG_VERSION}"
+  docker tag "${IMAGE_TAG_SNAPSHOT}" "${IMAGE_TAG_LATEST}"
+  docker push "${IMAGE_TAG_VERSION}"
+  docker push "${IMAGE_TAG_LATEST}"
+elif [[ "${BRANCH}" == "develop" ]]; then
+  docker push "${IMAGE_TAG_SNAPSHOT}"
+fi
+
