@@ -9,6 +9,7 @@ jobs:
     parallelism: 1
     working_directory: /go/src/github.com/elxirhealth/directory
     steps:
+      - run: git config --global core.autocrlf input
       - checkout
       - setup_remote_docker
       - restore_cache:
