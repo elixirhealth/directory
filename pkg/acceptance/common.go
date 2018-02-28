@@ -63,19 +63,21 @@ func GetTestSearchQueryFromEntity(rng *rand.Rand, e *api.Entity) string {
 func getTestSearchQueryFromPatient(rng *rand.Rand, e *api.Entity) string {
 	var query string
 	p := e.TypeAttributes.(*api.Entity_Patient).Patient
-	switch rng.Int31n(6) {
-	case 0:
-		query = e.EntityId
-	case 1:
-		query = p.LastName
-	case 2:
-		query = p.FirstName
-	case 3:
-		query = p.LastName + " " + p.FirstName
-	case 4:
-		query = p.LastName + ", " + p.FirstName
-	case 5:
-		query = p.FirstName + " " + p.LastName
+	for len(query) < api.MinSearchQueryLen {
+		switch rng.Int31n(6) {
+		case 0:
+			query = e.EntityId
+		case 1:
+			query = p.LastName
+		case 2:
+			query = p.FirstName
+		case 3:
+			query = p.LastName + " " + p.FirstName
+		case 4:
+			query = p.LastName + ", " + p.FirstName
+		case 5:
+			query = p.FirstName + " " + p.LastName
+		}
 	}
 	return strings.ToLower(query)
 }
@@ -83,11 +85,13 @@ func getTestSearchQueryFromPatient(rng *rand.Rand, e *api.Entity) string {
 func getTestSearchQueryFromOffice(rng *rand.Rand, e *api.Entity) string {
 	var query string
 	f := e.TypeAttributes.(*api.Entity_Office).Office
-	switch rng.Int31n(2) {
-	case 0:
-		query = e.EntityId
-	case 1:
-		query = f.Name
+	for len(query) < api.MinSearchQueryLen {
+		switch rng.Int31n(2) {
+		case 0:
+			query = e.EntityId
+		case 1:
+			query = f.Name
+		}
 	}
 	return strings.ToLower(query)
 }
