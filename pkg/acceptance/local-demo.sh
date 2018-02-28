@@ -5,9 +5,10 @@ set -eou pipefail
 
 docker_cleanup() {
     echo "cleaning up existing network and containers..."
-    docker ps | grep -E 'libri|directory' | awk '{print $1}' | xargs -I {} docker stop {} || true
-    docker ps -a | grep -E 'libri|directory' | awk '{print $1}' | xargs -I {} docker rm {} || true
-    docker network list | grep 'directory' | awk '{print $2}' | xargs -I {} docker network rm {} || true
+    CONTAINERS='libri|directory'
+    docker ps | grep -E ${CONTAINERS} | awk '{print $1}' | xargs -I {} docker stop {} || true
+    docker ps -a | grep -E ${CONTAINERS} | awk '{print $1}' | xargs -I {} docker rm {} || true
+    docker network list | grep ${CONTAINERS} | awk '{print $2}' | xargs -I {} docker network rm {} || true
 }
 
 # optional settings (generally defaults should be fine, but sometimes useful for debugging)
@@ -28,29 +29,28 @@ echo
 echo "creating directory docker network..."
 docker network create directory
 
-# TODO start and healthcheck dependency services
-
 echo
 echo "starting directory..."
 port=10100
-name="directory-${c}"
+name="directory-0"
 docker run --name "${name}" --net=directory -d -p ${port}:${port} ${DIRECTORY_IMAGE} \
     start \
     --logLevel "${DIRECTORY_LOG_LEVEL}" \
     --serverPort ${port}
-    # TODO add other relevant args
 directory_addrs="${name}:${port}"
 directory_containers="${name}"
 
 echo
 echo "testing directory health..."
 docker run --rm --net=directory ${DIRECTORY_IMAGE} test health \
-    --directorys "${directory_addrs}" \
+    --directories "${directory_addrs}" \
     --logLevel "${DIRECTORY_LOG_LEVEL}"
 
 echo
 echo "testing directory ..."
-# TODO
+docker run --rm --net=catalog ${DIRECTORY_IMAGE} test io \
+    --directories "${directory_addrs}" \
+    --logLevel "${DIRECTORY_LOG_LEVEL}"
 
 echo
 echo "cleaning up..."

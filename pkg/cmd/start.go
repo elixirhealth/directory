@@ -1,23 +1,33 @@
 package cmd
 
 import (
+	"errors"
 	"log"
 	"os"
 
 	cerrors "github.com/drausin/libri/libri/common/errors"
 	"github.com/drausin/libri/libri/common/logging"
 	"github.com/elxirhealth/directory/pkg/server"
+	"github.com/elxirhealth/directory/pkg/server/storage"
 	bserver "github.com/elxirhealth/service-base/pkg/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const (
-	serverPortFlag   = "serverPort"
-	metricsPortFlag  = "metricsPort"
-	profilerPortFlag = "profilerPort"
-	profileFlag      = "profile"
-	// TODO put other flag constants here
+	serverPortFlag      = "serverPort"
+	metricsPortFlag     = "metricsPort"
+	profilerPortFlag    = "profilerPort"
+	profileFlag         = "profile"
+	dbURLFlag           = "dbURL"
+	storageMemoryFlag   = "storageMemory"
+	storagePostgresFlag = "storagePostgres"
+)
+
+var (
+	errMultipleStorageTypes = errors.New("multiple storage types specified")
+	errNoStorageType        = errors.New("no storage type specified")
 )
 
 var startCmd = &cobra.Command{
@@ -47,20 +57,48 @@ func init() {
 	startCmd.Flags().Bool(profileFlag, bserver.DefaultProfile,
 		"whether to enable profiler")
 
+	startCmd.Flags().Bool(storageMemoryFlag, true,
+		"use in-memory storage")
+	startCmd.Flags().Bool(storagePostgresFlag, false,
+		"use Postgres DB storage")
+	startCmd.Flags().String(dbURLFlag, "", "Postgres DB URL")
+
 	// bind viper flags
-	viper.SetEnvPrefix(envVarPrefix) // look for env vars with "COURIER_" prefix
+	viper.SetEnvPrefix(envVarPrefix) // look for env vars with "DIRECTORY_" prefix
 	viper.AutomaticEnv()             // read in environment variables that match
 	cerrors.MaybePanic(viper.BindPFlags(startCmd.Flags()))
 }
 
 func getDirectoryConfig() (*server.Config, error) {
+	storageType, err := getStorageType()
+	if err != nil {
+		return nil, err
+	}
 	c := server.NewDefaultConfig()
 	c.WithServerPort(uint(viper.GetInt(serverPortFlag))).
 		WithMetricsPort(uint(viper.GetInt(metricsPortFlag))).
 		WithProfilerPort(uint(viper.GetInt(profilerPortFlag))).
 		WithLogLevel(logging.GetLogLevel(viper.GetString(logLevelFlag))).
 		WithProfile(viper.GetBool(profileFlag))
-	// TODO set other config elements here
+
+	c.Storage.Type = storageType
+	c.WithDBUrl(viper.GetString(dbURLFlag))
+
+	lg := logging.NewDevLogger(c.LogLevel)
+	lg.Info("successfully parsed config", zap.Object("config", c))
 
 	return c, nil
+}
+
+func getStorageType() (storage.Type, error) {
+	if viper.GetBool(storageMemoryFlag) && viper.GetBool(storagePostgresFlag) {
+		return storage.Unspecified, errMultipleStorageTypes
+	}
+	if viper.GetBool(storageMemoryFlag) {
+		return storage.Memory, nil
+	}
+	if viper.GetBool(storagePostgresFlag) {
+		return storage.Postgres, nil
+	}
+	return storage.Unspecified, errNoStorageType
 }

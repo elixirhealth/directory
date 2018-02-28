@@ -3,6 +3,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/elxirhealth/directory/pkg/server/storage"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
@@ -14,14 +15,18 @@ func TestGetDirectoryConfig(t *testing.T) {
 	profilerPort := uint(9012)
 	logLevel := zapcore.DebugLevel.String()
 	profile := true
-	// TODO add other non-default config values
+	dbURL := "some URL"
+	storageMemory := false
+	storagePostgres := true
 
 	viper.Set(serverPortFlag, serverPort)
 	viper.Set(metricsPortFlag, metricsPort)
 	viper.Set(profilerPortFlag, profilerPort)
 	viper.Set(logLevelFlag, logLevel)
 	viper.Set(profileFlag, profile)
-	// TODO set other non-default config value
+	viper.Set(dbURLFlag, dbURLFlag)
+	viper.Set(storageMemoryFlag, storageMemory)
+	viper.Set(storagePostgresFlag, storagePostgres)
 
 	c, err := getDirectoryConfig()
 	assert.Nil(t, err)
@@ -30,6 +35,32 @@ func TestGetDirectoryConfig(t *testing.T) {
 	assert.Equal(t, profilerPort, c.ProfilerPort)
 	assert.Equal(t, logLevel, c.LogLevel.String())
 	assert.Equal(t, profile, c.Profile)
-	// TODO assert equal other non-default config values
+	assert.Equal(t, dbURL, c.DBUrl)
+	assert.Equal(t, storage.Postgres, c.Storage.Type)
+}
 
+func TestGetCacheStorageType(t *testing.T) {
+	viper.Set(storageMemoryFlag, true)
+	viper.Set(storagePostgresFlag, false)
+	st, err := getStorageType()
+	assert.Nil(t, err)
+	assert.Equal(t, storage.Memory, st)
+
+	viper.Set(storageMemoryFlag, false)
+	viper.Set(storagePostgresFlag, true)
+	st, err = getStorageType()
+	assert.Nil(t, err)
+	assert.Equal(t, storage.Postgres, st)
+
+	viper.Set(storageMemoryFlag, true)
+	viper.Set(storagePostgresFlag, true)
+	st, err = getStorageType()
+	assert.Equal(t, errMultipleStorageTypes, err)
+	assert.Equal(t, storage.Unspecified, st)
+
+	viper.Set(storageMemoryFlag, false)
+	viper.Set(storagePostgresFlag, false)
+	st, err = getStorageType()
+	assert.Equal(t, errNoStorageType, err)
+	assert.Equal(t, storage.Unspecified, st)
 }
