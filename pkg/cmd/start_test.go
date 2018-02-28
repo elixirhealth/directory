@@ -24,7 +24,7 @@ func TestGetDirectoryConfig(t *testing.T) {
 	viper.Set(profilerPortFlag, profilerPort)
 	viper.Set(logLevelFlag, logLevel)
 	viper.Set(profileFlag, profile)
-	viper.Set(dbURLFlag, dbURLFlag)
+	viper.Set(dbURLFlag, dbURL)
 	viper.Set(storageMemoryFlag, storageMemory)
 	viper.Set(storagePostgresFlag, storagePostgres)
 
