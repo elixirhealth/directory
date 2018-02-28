@@ -48,7 +48,7 @@ docker run --rm --net=directory ${DIRECTORY_IMAGE} test health \
 
 echo
 echo "testing directory ..."
-docker run --rm --net=catalog ${DIRECTORY_IMAGE} test io \
+docker run --rm --net=directory ${DIRECTORY_IMAGE} test io \
     --directories "${directory_addrs}" \
     --logLevel "${DIRECTORY_LOG_LEVEL}"
 
