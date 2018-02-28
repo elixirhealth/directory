@@ -15,7 +15,7 @@ const (
 )
 
 var rootCmd = &cobra.Command{
-	Short: "TODO", // TODO
+	Short: "Directory service manages entities",
 }
 
 func init() {
@@ -23,7 +23,7 @@ func init() {
 		"log level")
 
 	// bind viper flags
-	viper.SetEnvPrefix(envVarPrefix) // look for env vars with "COURIER_" prefix
+	viper.SetEnvPrefix(envVarPrefix) // look for env vars with prefix
 	viper.AutomaticEnv()             // read in environment variables that match
 	errors.MaybePanic(viper.BindPFlags(rootCmd.Flags()))
 }

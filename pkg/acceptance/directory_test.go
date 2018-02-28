@@ -6,11 +6,9 @@ import (
 	"context"
 	"math/rand"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/Pallinder/go-randomdata"
 	errors2 "github.com/drausin/libri/libri/common/errors"
 	"github.com/drausin/libri/libri/common/logging"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
@@ -45,10 +43,6 @@ type state struct {
 	tearDownPostgres func() error
 }
 
-func (st *state) randClient() api.DirectoryClient {
-	return st.directoryClients[st.rng.Int31n(int32(len(st.directoryClients)))]
-}
-
 func TestAcceptance(t *testing.T) {
 	params := &parameters{
 		nDirectories: 3,
@@ -78,7 +72,7 @@ func testPutNewEntities(t *testing.T, params *parameters, st *state) {
 	st.entities = make([]*api.Entity, params.nPuts)
 
 	for i := range st.entities {
-		st.entities[i] = createTestEntity(t, st.rng)
+		st.entities[i] = CreateTestEntity(st.rng)
 
 		rq := &api.PutEntityRequest{Entity: st.entities[i]}
 		ctx, cancel := context.WithTimeout(context.Background(), params.rqTimeout)
@@ -95,7 +89,7 @@ func testPutUpdatedEntities(t *testing.T, params *parameters, st *state) {
 		if st.rng.Float32() > params.updateRatio {
 			continue
 		}
-		updateTestEntity(t, e)
+		UpdateTestEntity(e)
 
 		rq := &api.PutEntityRequest{Entity: st.entities[i]}
 		ctx, cancel := context.WithTimeout(context.Background(), params.rqTimeout)
@@ -124,7 +118,7 @@ func testSearchEntities(t *testing.T, params *parameters, st *state) {
 		}
 
 		rq := &api.SearchEntityRequest{
-			Query: getSearchQueryFromEntity(st, e),
+			Query: GetTestSearchQueryFromEntity(st.rng, e),
 			Limit: params.searchLimit,
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), params.rqTimeout)
@@ -143,74 +137,6 @@ func testSearchEntities(t *testing.T, params *parameters, st *state) {
 		}
 		assert.True(t, found)
 	}
-}
-
-func createTestEntity(t *testing.T, rng *rand.Rand) *api.Entity {
-	et := storage.EntityType(rng.Int31n(storage.NEntityTypes))
-
-	switch et {
-	case storage.Patient:
-		return api.NewPatient("", &api.Patient{
-			LastName:   randomdata.LastName(),
-			FirstName:  randomdata.FirstName(randomdata.RandomGender),
-			MiddleName: randomdata.FirstName(randomdata.RandomGender),
-			Birthdate: &api.Date{
-				Day:   uint32(rng.Int31n(28)) + 1,
-				Month: uint32(rng.Int31n(12)) + 1,
-				Year:  1950 + uint32(rng.Int31n(60)),
-			},
-		})
-	case storage.Office:
-		return api.NewOffice("", &api.Office{
-			Name: randomdata.SillyName(),
-		})
-	default:
-		t.Fatalf("no test entity creation defined for entity type %s", et.String())
-		return nil
-	}
-}
-
-func updateTestEntity(t *testing.T, e *api.Entity) {
-	switch ta := e.TypeAttributes.(type) {
-	case *api.Entity_Patient:
-		ta.Patient.LastName = randomdata.LastName()
-	case *api.Entity_Office:
-		ta.Office.Name = randomdata.SillyName()
-	default:
-		t.Fatalf("no test entity update defined for entity type %s",
-			storage.GetEntityType(e).String())
-	}
-}
-
-func getSearchQueryFromEntity(st *state, e *api.Entity) string {
-	var query string
-	switch ta := e.TypeAttributes.(type) {
-	case *api.Entity_Patient:
-		p := ta.Patient
-		switch st.rng.Int31n(6) {
-		case 0:
-			query = e.EntityId
-		case 1:
-			query = p.LastName
-		case 2:
-			query = p.FirstName
-		case 3:
-			query = p.LastName + " " + p.FirstName
-		case 4:
-			query = p.LastName + ", " + p.FirstName
-		case 5:
-			query = p.FirstName + " " + p.LastName
-		}
-	case *api.Entity_Office:
-		f := ta.Office
-		switch st.rng.Int31n(2) {
-		case 0:
-			query = e.EntityId
-		case 1:
-			query = f.Name
-		}
-	}
-	return strings.ToLower(query)
 }
 
 func setUp(t *testing.T, params *parameters) *state {
@@ -288,4 +214,8 @@ func tearDown(t *testing.T, st *state) {
 
 	err = st.tearDownPostgres()
 	assert.Nil(t, err)
+}
+
+func (st *state) randClient() api.DirectoryClient {
+	return st.directoryClients[st.rng.Int31n(int32(len(st.directoryClients)))]
 }

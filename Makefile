@@ -22,7 +22,7 @@ build:
 
 build-static:
 	@echo "--> Running go build for static binary"
-	@./vendor/$(SERVICE_BASE_PKG)/scripts/build-static deploy/bin/directory
+	@CGO_ENABLED=0 ./vendor/$(SERVICE_BASE_PKG)/scripts/build-static deploy/bin/directory
 
 demo:
 	@echo "--> Running demo"

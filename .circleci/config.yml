@@ -9,16 +9,23 @@ jobs:
     parallelism: 1
     working_directory: /go/src/github.com/elxirhealth/directory
     steps:
+      - run: git config --global core.autocrlf input
       - checkout
+      - setup_remote_docker
       - restore_cache:
           keys:
             - arch={{ arch }}-vendor={{ checksum "Gopkg.lock" }}-v1
+            - arch={{ arch }}-vendor={{ checksum "Gopkg.lock" }}
+            - arch={{ arch }}
       - run: make get-deps
       - save_cache:
           key: arch={{ arch }}-vendor={{ checksum "Gopkg.lock" }}-v1
           paths:
             - vendor
       - run: make build
+      - run: make build-static
+      - run: make docker-image
       - run: make test
-      - run: make acceptance
       - run: make lint
+      - run: make acceptance
+      - run: make demo
