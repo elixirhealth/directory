@@ -150,6 +150,7 @@ func (m *Entity) Type() string {
 	}
 }
 
+// Name return a displayable name for the entity, dependant on type.
 func (m *Entity) Name() string {
 	switch ta := m.TypeAttributes.(type) {
 	case *Entity_Patient:
