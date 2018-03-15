@@ -142,9 +142,20 @@ func validateOffice(p *Office) error {
 func (m *Entity) Type() string {
 	switch m.TypeAttributes.(type) {
 	case *Entity_Patient:
-		return "patient"
+		return "PATIENT"
 	case *Entity_Office:
-		return "office"
+		return "OFFICE"
+	default:
+		panic(errUnknownEntityType)
+	}
+}
+
+func (m *Entity) Name() string {
+	switch ta := m.TypeAttributes.(type) {
+	case *Entity_Patient:
+		return ta.Patient.FirstName + " " + ta.Patient.LastName
+	case *Entity_Office:
+		return ta.Office.Name
 	default:
 		panic(errUnknownEntityType)
 	}
