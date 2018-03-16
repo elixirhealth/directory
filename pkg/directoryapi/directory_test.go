@@ -7,6 +7,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestEntity_Type(t *testing.T) {
+	cases := []struct {
+		e        *Entity
+		expected string
+	}{
+		{e: NewTestPatient(0, true), expected: "PATIENT"},
+		{e: NewTestOffice(0, true), expected: "OFFICE"},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.expected, c.e.Type())
+	}
+}
+
+func TestEntity_Name(t *testing.T) {
+	cases := []struct {
+		e        *Entity
+		expected string
+	}{
+		{e: NewTestPatient(0, true), expected: "First Name 0 Last Name 0"},
+		{e: NewTestOffice(0, true), expected: "Office Name 0"},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.expected, c.e.Name())
+	}
+}
+
 func TestValidatePutEntityRequest(t *testing.T) {
 	cases := map[string]struct {
 		rq       *PutEntityRequest
