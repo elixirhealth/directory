@@ -203,8 +203,8 @@ func tearDown(t *testing.T, st *state) {
 	for _, d := range st.directories {
 		d.StopServer()
 	}
-	logger := &migrations.ZapLogger{Logger: logging.NewDevInfoLogger()}
-	m := migrations.NewBindataMigrator(
+	logger := &bstorage.ZapLogger{Logger: logging.NewDevInfoLogger()}
+	m := bstorage.NewBindataMigrator(
 		st.dbURL,
 		bindata.Resource(migrations.AssetNames(), migrations.Asset),
 		logger,

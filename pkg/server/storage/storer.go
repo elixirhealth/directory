@@ -7,6 +7,7 @@ import (
 	errors2 "github.com/drausin/libri/libri/common/errors"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/elxirhealth/directory/pkg/server/storage/id"
+	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
 )
@@ -23,21 +24,9 @@ var (
 	ErrUnknownEntityType = errors.New("unknown entity type")
 )
 
-const (
-	// Unspecified indicates when the storage type is not specified (and thus should take the
-	// default value).
-	Unspecified Type = iota
-
-	// Postgres indicates storage backed by a Postgres DB.
-	Postgres
-
-	// Memory indicates storage backed by an in-memory map.
-	Memory
-)
-
 var (
-	// DefaultStorage is the default storage type.
-	DefaultStorage = Memory
+	// DefaultStorage is the default bstorage type.
+	DefaultStorage = bstorage.Memory
 
 	// DefaultPutQueryTimeout is the default timeout for DB INSERT or UPDATE queries used to in
 	// a Storer's PutEntity method.
@@ -70,23 +59,9 @@ type Storer interface {
 	Close() error
 }
 
-// Type indicates the storage backend type.
-type Type int
-
-func (t Type) String() string {
-	switch t {
-	case Postgres:
-		return "Postgres"
-	case Memory:
-		return "Memory"
-	default:
-		return "Unspecified"
-	}
-}
-
 // Parameters defines the parameters of the Storer.
 type Parameters struct {
-	Type               Type
+	Type               bstorage.Type
 	PutQueryTimeout    time.Duration
 	GetQueryTimeout    time.Duration
 	SearchQueryTimeout time.Duration

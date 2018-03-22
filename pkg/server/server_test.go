@@ -7,6 +7,7 @@ import (
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/elxirhealth/directory/pkg/server/storage"
 	"github.com/elxirhealth/service-base/pkg/server"
+	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,7 +26,7 @@ func TestNewDirectory_err(t *testing.T) {
 	badConfigs := map[string]*Config{
 		"empty DBUrl": NewDefaultConfig().
 			WithDBUrl("").
-			WithStorage(&storage.Parameters{Type: storage.Postgres}),
+			WithStorage(&storage.Parameters{Type: bstorage.Postgres}),
 	}
 	for desc, badConfig := range badConfigs {
 		c, err := newDirectory(badConfig)
