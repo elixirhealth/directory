@@ -184,7 +184,7 @@ func newDirectoryConfigs(params *parameters, st *state) ([]*server.Config, []*ne
 	addrs := make([]*net.TCPAddr, params.nDirectories)
 
 	storageParams := storage.NewDefaultParameters()
-	storageParams.Type = storage.Postgres
+	storageParams.Type = bstorage.Postgres
 
 	for i := uint(0); i < params.nDirectories; i++ {
 		serverPort, metricsPort := startPort+i*10, startPort+i*10+1
