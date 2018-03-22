@@ -3,7 +3,7 @@ package cmd
 import (
 	"testing"
 
-	"github.com/elxirhealth/directory/pkg/server/storage"
+	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
@@ -36,7 +36,7 @@ func TestGetDirectoryConfig(t *testing.T) {
 	assert.Equal(t, logLevel, c.LogLevel.String())
 	assert.Equal(t, profile, c.Profile)
 	assert.Equal(t, dbURL, c.DBUrl)
-	assert.Equal(t, storage.Postgres, c.Storage.Type)
+	assert.Equal(t, bstorage.Postgres, c.Storage.Type)
 }
 
 func TestGetCacheStorageType(t *testing.T) {
@@ -44,23 +44,23 @@ func TestGetCacheStorageType(t *testing.T) {
 	viper.Set(storagePostgresFlag, false)
 	st, err := getStorageType()
 	assert.Nil(t, err)
-	assert.Equal(t, storage.Memory, st)
+	assert.Equal(t, bstorage.Memory, st)
 
 	viper.Set(storageMemoryFlag, false)
 	viper.Set(storagePostgresFlag, true)
 	st, err = getStorageType()
 	assert.Nil(t, err)
-	assert.Equal(t, storage.Postgres, st)
+	assert.Equal(t, bstorage.Postgres, st)
 
 	viper.Set(storageMemoryFlag, true)
 	viper.Set(storagePostgresFlag, true)
 	st, err = getStorageType()
 	assert.Equal(t, errMultipleStorageTypes, err)
-	assert.Equal(t, storage.Unspecified, st)
+	assert.Equal(t, bstorage.Unspecified, st)
 
 	viper.Set(storageMemoryFlag, false)
 	viper.Set(storagePostgresFlag, false)
 	st, err = getStorageType()
 	assert.Equal(t, errNoStorageType, err)
-	assert.Equal(t, storage.Unspecified, st)
+	assert.Equal(t, bstorage.Unspecified, st)
 }

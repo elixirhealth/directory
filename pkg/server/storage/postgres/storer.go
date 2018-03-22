@@ -10,6 +10,7 @@ import (
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
 	"github.com/elxirhealth/directory/pkg/server/storage"
 	"github.com/elxirhealth/directory/pkg/server/storage/id"
+	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -44,7 +45,7 @@ func New(
 	if dbURL == "" {
 		return nil, errEmptyDBUrl
 	}
-	if params.Type != storage.Postgres {
+	if params.Type != bstorage.Postgres {
 		return nil, errUnexpectedStorageType
 	}
 	db, err := sql.Open("postgres", dbURL)

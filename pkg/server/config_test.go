@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/elxirhealth/directory/pkg/server/storage"
+	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,7 @@ func TestConfig_WithStorage(t *testing.T) {
 	assert.NotEqual(t,
 		c1.Storage.Type,
 		c3.WithStorage(
-			&storage.Parameters{Type: storage.Unspecified},
+			&storage.Parameters{Type: bstorage.Unspecified},
 		).Storage.Type,
 	)
 }

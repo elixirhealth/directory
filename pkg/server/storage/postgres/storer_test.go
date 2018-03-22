@@ -38,9 +38,9 @@ func TestMain(m *testing.M) {
 		log.Fatal("test postgres start error: " + err.Error())
 	}
 	as := bindata.Resource(migrations.AssetNames(), migrations.Asset)
-	logger := &migrations.LogLogger{}
+	logger := &bstorage.LogLogger{}
 	setUpPostgresTest = func(t *testing.T) (string, func() error) {
-		m := migrations.NewBindataMigrator(dbURL, as, logger)
+		m := bstorage.NewBindataMigrator(dbURL, as, logger)
 		if err := m.Up(); err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func TestNewPostgres_err(t *testing.T) {
 			dbURL: "some DB URL",
 			idGen: idGen,
 			params: &storage.Parameters{
-				Type: storage.Unspecified,
+				Type: bstorage.Unspecified,
 			},
 		},
 	}
@@ -98,7 +98,7 @@ func TestStorer_PutGetEntity_ok(t *testing.T) {
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	lg := logging.NewDevLogger(zapcore.DebugLevel)
 	params := storage.NewDefaultParameters()
-	params.Type = storage.Postgres
+	params.Type = bstorage.Postgres
 	s, err := New(dbURL, idGen, params, lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -167,7 +167,7 @@ func TestStorer_GetEntity_err(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	params := storage.NewDefaultParameters()
-	params.Type = storage.Postgres
+	params.Type = bstorage.Postgres
 	lg := zap.NewNop()
 	s, err := New(dbURL, idGen, params, lg)
 	assert.Nil(t, err)
@@ -196,7 +196,7 @@ func TestStorer_PutEntity_err(t *testing.T) {
 	rng := rand.New(rand.NewSource(0))
 	lg := zap.NewNop()
 	params := storage.NewDefaultParameters()
-	params.Type = storage.Postgres
+	params.Type = bstorage.Postgres
 	okIDGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	okID, err := okIDGen.Generate(storage.Patient.IDPrefix())
 	assert.Nil(t, err)
@@ -254,7 +254,7 @@ func TestStorer_SearchEntity_ok(t *testing.T) {
 	lg := logging.NewDevLogger(zapcore.DebugLevel)
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	params := storage.NewDefaultParameters()
-	params.Type = storage.Postgres
+	params.Type = bstorage.Postgres
 	s, err := New(dbURL, idGen, params, lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -316,7 +316,7 @@ func TestStorer_SearchEntity_err(t *testing.T) {
 	idGen := id.NewNaiveLuhnGenerator(rng, id.DefaultLength)
 	lg := zap.NewNop()
 	params := storage.NewDefaultParameters()
-	params.Type = storage.Postgres
+	params.Type = bstorage.Postgres
 	okStorer, err := New(dbURL, idGen, params, lg)
 	assert.Nil(t, err)
 	assert.NotNil(t, okStorer)

@@ -3,8 +3,8 @@ package server
 import (
 	"github.com/drausin/libri/libri/common/errors"
 	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage"
 	"github.com/elxirhealth/directory/pkg/server/storage/postgres/migrations"
+	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/mattes/migrate/source/go-bindata"
 	"google.golang.org/grpc"
 )
@@ -32,14 +32,14 @@ func (d *Directory) StopServer() {
 }
 
 func (d *Directory) maybeMigrateDB() error {
-	if d.config.Storage.Type != storage.Postgres {
+	if d.config.Storage.Type != bstorage.Postgres {
 		return nil
 	}
 
-	m := migrations.NewBindataMigrator(
+	m := bstorage.NewBindataMigrator(
 		d.config.DBUrl,
 		bindata.Resource(migrations.AssetNames(), migrations.Asset),
-		&migrations.ZapLogger{Logger: d.Logger},
+		&bstorage.ZapLogger{Logger: d.Logger},
 	)
 	return m.Up()
 }

@@ -8,8 +8,8 @@ import (
 	cerrors "github.com/drausin/libri/libri/common/errors"
 	"github.com/drausin/libri/libri/common/logging"
 	"github.com/elxirhealth/directory/pkg/server"
-	"github.com/elxirhealth/directory/pkg/server/storage"
 	bserver "github.com/elxirhealth/service-base/pkg/server"
+	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -90,15 +90,15 @@ func getDirectoryConfig() (*server.Config, error) {
 	return c, nil
 }
 
-func getStorageType() (storage.Type, error) {
+func getStorageType() (bstorage.Type, error) {
 	if viper.GetBool(storageMemoryFlag) && viper.GetBool(storagePostgresFlag) {
-		return storage.Unspecified, errMultipleStorageTypes
+		return bstorage.Unspecified, errMultipleStorageTypes
 	}
 	if viper.GetBool(storageMemoryFlag) {
-		return storage.Memory, nil
+		return bstorage.Memory, nil
 	}
 	if viper.GetBool(storagePostgresFlag) {
-		return storage.Postgres, nil
+		return bstorage.Postgres, nil
 	}
-	return storage.Unspecified, errNoStorageType
+	return bstorage.Unspecified, errNoStorageType
 }
