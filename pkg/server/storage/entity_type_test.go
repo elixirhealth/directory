@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
 	"github.com/stretchr/testify/assert"
 )
 

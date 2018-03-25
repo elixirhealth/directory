@@ -5,9 +5,9 @@ import (
 	"time"
 
 	errors2 "github.com/drausin/libri/libri/common/errors"
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage/id"
-	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
+	"github.com/elixirhealth/directory/pkg/server/storage/id"
+	bstorage "github.com/elixirhealth/service-base/pkg/server/storage"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
 )

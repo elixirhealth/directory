@@ -3,7 +3,7 @@ package storage
 import (
 	"strings"
 
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
 )
 
 // EntityType is an enum for different types of entities.

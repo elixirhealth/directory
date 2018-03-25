@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/elxirhealth/directory/pkg/server"
+	"github.com/elixirhealth/directory/pkg/server"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"

@@ -1,7 +1,7 @@
 package server
 
 import (
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

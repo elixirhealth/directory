@@ -7,9 +7,9 @@ import (
 
 	cerrors "github.com/drausin/libri/libri/common/errors"
 	"github.com/drausin/libri/libri/common/logging"
-	"github.com/elxirhealth/directory/pkg/server"
-	bserver "github.com/elxirhealth/service-base/pkg/server"
-	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
+	"github.com/elixirhealth/directory/pkg/server"
+	bserver "github.com/elixirhealth/service-base/pkg/server"
+	bstorage "github.com/elixirhealth/service-base/pkg/server/storage"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"

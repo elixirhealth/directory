@@ -1,7 +1,7 @@
 package memory
 
 import (
-	"github.com/elxirhealth/directory/pkg/server/storage"
+	"github.com/elixirhealth/directory/pkg/server/storage"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

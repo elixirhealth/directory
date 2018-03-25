@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/Pallinder/go-randomdata"
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
+	"github.com/elixirhealth/directory/pkg/server/storage"
 )
 
 // CreateTestEntity creates a random test entity.
