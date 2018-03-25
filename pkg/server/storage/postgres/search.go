@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/elxirhealth/directory/pkg/server/storage"
+	"github.com/elixirhealth/directory/pkg/server/storage"
 )
 
 var searchers = []searcher{

@@ -3,11 +3,11 @@ package server
 import (
 	"errors"
 
-	"github.com/elxirhealth/directory/pkg/server/storage"
-	"github.com/elxirhealth/directory/pkg/server/storage/id"
-	memstorage "github.com/elxirhealth/directory/pkg/server/storage/memory"
-	pgstorage "github.com/elxirhealth/directory/pkg/server/storage/postgres"
-	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
+	"github.com/elixirhealth/directory/pkg/server/storage"
+	"github.com/elixirhealth/directory/pkg/server/storage/id"
+	memstorage "github.com/elixirhealth/directory/pkg/server/storage/memory"
+	pgstorage "github.com/elixirhealth/directory/pkg/server/storage/postgres"
+	bstorage "github.com/elixirhealth/service-base/pkg/server/storage"
 	"go.uber.org/zap"
 )
 

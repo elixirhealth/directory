@@ -6,8 +6,8 @@ import (
 	"math/rand"
 	"testing"
 
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage/id"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
+	"github.com/elixirhealth/directory/pkg/server/storage/id"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )

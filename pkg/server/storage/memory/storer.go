@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage"
-	"github.com/elxirhealth/directory/pkg/server/storage/id"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
+	"github.com/elixirhealth/directory/pkg/server/storage"
+	"github.com/elixirhealth/directory/pkg/server/storage/id"
 	"go.uber.org/zap"
 )
 

@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/drausin/libri/libri/common/logging"
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage"
-	"github.com/elxirhealth/directory/pkg/server/storage/id"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
+	"github.com/elixirhealth/directory/pkg/server/storage"
+	"github.com/elixirhealth/directory/pkg/server/storage/id"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

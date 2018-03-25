@@ -62,13 +62,13 @@
 
 [[projects]]
   branch = "develop"
-  name = "github.com/elxirhealth/service-base"
+  name = "github.com/elixirhealth/service-base"
   packages = [
     "pkg/server",
     "pkg/server/storage",
     "pkg/version"
   ]
-  revision = "4db3ff36815e2ea5caccc03f35bb6dfe5dea9fcb"
+  revision = "0ac1d7440a84122b037e7bcc89aec0fd608c85f1"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"

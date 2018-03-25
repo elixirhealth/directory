@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage"
-	"github.com/elxirhealth/service-base/pkg/server"
-	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
+	"github.com/elixirhealth/directory/pkg/server/storage"
+	"github.com/elixirhealth/service-base/pkg/server"
+	bstorage "github.com/elixirhealth/service-base/pkg/server/storage"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )

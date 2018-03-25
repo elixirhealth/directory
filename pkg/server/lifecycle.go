@@ -2,9 +2,9 @@ package server
 
 import (
 	"github.com/drausin/libri/libri/common/errors"
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage/postgres/migrations"
-	bstorage "github.com/elxirhealth/service-base/pkg/server/storage"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
+	"github.com/elixirhealth/directory/pkg/server/storage/postgres/migrations"
+	bstorage "github.com/elixirhealth/service-base/pkg/server/storage"
 	"github.com/mattes/migrate/source/go-bindata"
 	"google.golang.org/grpc"
 )

@@ -1,12 +1,12 @@
 SHELL=/bin/bash -eou pipefail
 GOTOOLS= github.com/alecthomas/gometalinter github.com/wadey/gocovmerge github.com/jteeuwen/go-bindata
 PKGS=$(shell go list ./... | grep -v /vendor/)
-PKG_SUBDIRS=$(shell go list ./... | grep -v /vendor/ | sed -r 's|github.com/elxirhealth/directory/||g' | sort)
+PKG_SUBDIRS=$(shell go list ./... | grep -v /vendor/ | sed -r 's|github.com/elixirhealth/directory/||g' | sort)
 GIT_STATUS_SUBDIRS=$(shell git status --porcelain | grep -e '\.go$$' | sed -r 's|^...(.+)/[^/]+\.go$$|\1|' | sort | uniq)
 GIT_DIFF_SUBDIRS=$(shell git diff develop..HEAD --name-only | grep -e '\.go$$' | sed -r 's|^(.+)/[^/]+\.go$$|\1|' | sort | uniq)
 GIT_STATUS_PKG_SUBDIRS=$(shell echo $(PKG_SUBDIRS) $(GIT_STATUS_SUBDIRS) | tr " " "\n" | sort | uniq -d)
 GIT_DIFF_PKG_SUBDIRS=$(shell echo $(PKG_SUBDIRS) $(GIT_DIFF_SUBDIRS) | tr " " "\n" | sort | uniq -d)
-SERVICE_BASE_PKG=github.com/elxirhealth/service-base
+SERVICE_BASE_PKG=github.com/elixirhealth/service-base
 MIGRATIONS_PKG=pkg/server/storage/postgres/migrations
 
 .PHONY: bench build
@@ -14,7 +14,7 @@ MIGRATIONS_PKG=pkg/server/storage/postgres/migrations
 acceptance:
 	@echo "--> Running acceptance tests"
 	@mkdir -p artifacts
-	@go test -tags acceptance -v github.com/elxirhealth/directory/pkg/acceptance 2>&1 | tee artifacts/acceptance.log
+	@go test -tags acceptance -v github.com/elixirhealth/directory/pkg/acceptance 2>&1 | tee artifacts/acceptance.log
 
 build:
 	@echo "--> Running go build"

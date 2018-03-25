@@ -20,7 +20,7 @@ what CircleCI does). You can do this on your local machine via
 ```bash
 $ make enter-build-container
 # enter "elxir-build" host 
-$ cd src/github.com/elxirhealth/directory
+$ cd src/github.com/elixirhealth/directory
 $ make test
 ```
 

@@ -1,7 +1,7 @@
 package client
 
 import (
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
 	"google.golang.org/grpc"
 )
 

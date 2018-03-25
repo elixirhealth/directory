@@ -3,8 +3,8 @@ package postgres
 import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/drausin/libri/libri/common/errors"
-	api "github.com/elxirhealth/directory/pkg/directoryapi"
-	"github.com/elxirhealth/directory/pkg/server/storage"
+	api "github.com/elixirhealth/directory/pkg/directoryapi"
+	"github.com/elixirhealth/directory/pkg/server/storage"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
