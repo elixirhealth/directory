@@ -19,7 +19,7 @@ DIRECTORY_TIMEOUT="${DIRECTORY_TIMEOUT:-5}"  # 10, or 20 for really sketchy netw
 LOCAL_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # container command constants
-DIRECTORY_IMAGE="gcr.io/elxir-core-infra/directory:snapshot" # develop
+DIRECTORY_IMAGE="gcr.io/elixir-core-prod/directory:snapshot" # develop
 
 echo
 echo "cleaning up from previous runs..."
